@@ -41,8 +41,9 @@ def load_level_df():
 
 
 @st.cache_data(ttl=300)
-def load_revisions_df(n_periods=18):
-    return database.get_initial_vs_latest(NONFARM_SERIES_ID, n_periods=n_periods)
+def load_revisions_df():
+    """Tüm revizyon geçmişini döner (filtreleme panelde yapılır)."""
+    return database.get_initial_vs_latest(NONFARM_SERIES_ID, n_periods=None)
 
 
 level_df = load_level_df()
@@ -106,55 +107,97 @@ st.divider()
 # ============================================================== 3) Revizyonlar
 st.subheader("Revizyonlar: İlk Açıklanan vs Güncel Değer")
 
-rev_df = load_revisions_df(n_periods=18)
+rev_df_all = load_revisions_df()
 
-if rev_df.empty:
+if rev_df_all.empty:
     st.info(
         "Henüz revizyon verisi yok. Bunun için `FRED_API_KEY` tanımlı olarak "
         "`python -m src.update_data` çalıştırılmalı (bkz. README → Revizyon Takibi). "
         "Anahtar tanımlıysa ve script bir kez çalıştıysa bu grafik otomatik dolacaktır."
     )
 else:
-    fig_rev = go.Figure()
-    fig_rev.add_trace(
-        go.Bar(x=rev_df["ref_date"], y=rev_df["ilk_aciklanan"], name="İlk Açıklanan")
-    )
-    fig_rev.add_trace(
-        go.Bar(x=rev_df["ref_date"], y=rev_df["son_revize"], name="Güncel (Son Revize)")
-    )
-    fig_rev.update_layout(
-        barmode="group",
-        height=400,
-        margin=dict(l=10, r=10, t=20, b=10),
-        yaxis_title="Bin Kişi",
-        legend=dict(orientation="h", yanchor="bottom", y=-0.3),
-    )
-    st.plotly_chart(fig_rev, use_container_width=True)
+    rev_min_date = rev_df_all["ref_date"].min().date()
+    rev_max_date = rev_df_all["ref_date"].max().date()
+    rev_default_start = rev_df_all["ref_date"].iloc[max(0, len(rev_df_all) - 24)].date()
 
-    total_rev = rev_df["fark"].sum()
-    avg_rev = rev_df["fark"].mean()
-    c1, c2 = st.columns(2)
-    c1.metric("Toplam Revizyon Etkisi (gösterilen dönem)", f"{total_rev:+,.0f}K")
-    c2.metric("Ortalama Aylık Revizyon", f"{avg_rev:+,.1f}K")
+    rev_start, rev_end = st.slider(
+        "Revizyon tarih aralığı",
+        min_value=rev_min_date,
+        max_value=rev_max_date,
+        value=(rev_default_start, rev_max_date),
+        format="MM/YYYY",
+        key="revision_date_range",
+    )
 
-    with st.expander("📄 Revizyon detay tablosu"):
-        display_df = rev_df.copy()
-        display_df["ref_date"] = display_df["ref_date"].dt.strftime("%Y-%m")
-        display_df.columns = [
-            "Dönem", "İlk Açıklanan", "Güncel", "Revizyon Sayısı", "Fark",
-        ]
-        st.dataframe(display_df, use_container_width=True)
+    rev_df = rev_df_all[
+        (rev_df_all["ref_date"].dt.date >= rev_start) & (rev_df_all["ref_date"].dt.date <= rev_end)
+    ]
 
-    with st.expander("🔍 Belirli bir ayın tüm revizyon geçmişini gör"):
-        available_periods = sorted(level_df["date"].dt.strftime("%Y-%m-01").unique(), reverse=True)
-        selected_period = st.selectbox("Dönem seçin", available_periods)
-        history = database.get_revision_history(NONFARM_SERIES_ID, selected_period)
-        if history:
-            hist_df = pd.DataFrame(history)
-            hist_df.columns = ["Yayın Tarihi", "Değer", "Kaynak"]
-            st.dataframe(hist_df, use_container_width=True)
-        else:
-            st.caption("Bu dönem için kayıtlı revizyon geçmişi yok.")
+    if rev_df.empty:
+        st.info("Seçilen tarih aralığında revizyon verisi yok.")
+    else:
+        # ---- Net revizyon grafiği: pozitifse yukarı, negatifse aşağı tek bar ----
+        st.markdown("**Net Revizyon (Güncel − İlk Açıklanan)**")
+        st.caption("Yukarı yönlü bar = yukarı revize edildi, aşağı yönlü bar = aşağı revize edildi.")
+        fig_net = go.Figure()
+        fig_net.add_trace(
+            go.Bar(
+                x=rev_df["ref_date"],
+                y=rev_df["fark"],
+                marker_color=["#2ca02c" if v >= 0 else "#d62728" for v in rev_df["fark"]],
+            )
+        )
+        fig_net.add_hline(y=0, line_width=1, line_color="gray")
+        fig_net.update_layout(
+            height=300,
+            margin=dict(l=10, r=10, t=20, b=10),
+            yaxis_title="Bin Kişi (Revizyon)",
+            xaxis_title="Ay",
+        )
+        st.plotly_chart(fig_net, use_container_width=True)
+
+        # ---- İlk açıklanan vs güncel karşılaştırma (gruplu bar) ----
+        st.markdown("**İlk Açıklanan vs Güncel Karşılaştırması**")
+        fig_rev = go.Figure()
+        fig_rev.add_trace(
+            go.Bar(x=rev_df["ref_date"], y=rev_df["ilk_aciklanan"], name="İlk Açıklanan")
+        )
+        fig_rev.add_trace(
+            go.Bar(x=rev_df["ref_date"], y=rev_df["son_revize"], name="Güncel (Son Revize)")
+        )
+        fig_rev.update_layout(
+            barmode="group",
+            height=400,
+            margin=dict(l=10, r=10, t=20, b=10),
+            yaxis_title="Bin Kişi",
+            legend=dict(orientation="h", yanchor="bottom", y=-0.3),
+        )
+        st.plotly_chart(fig_rev, use_container_width=True)
+
+        total_rev = rev_df["fark"].sum()
+        avg_rev = rev_df["fark"].mean()
+        c1, c2 = st.columns(2)
+        c1.metric("Toplam Revizyon Etkisi (seçilen aralık)", f"{total_rev:+,.0f}K")
+        c2.metric("Ortalama Aylık Revizyon", f"{avg_rev:+,.1f}K")
+
+        with st.expander("📄 Revizyon detay tablosu"):
+            display_df = rev_df.copy()
+            display_df["ref_date"] = display_df["ref_date"].dt.strftime("%Y-%m")
+            display_df.columns = [
+                "Dönem", "İlk Açıklanan", "Güncel", "Revizyon Sayısı", "Fark",
+            ]
+            st.dataframe(display_df, use_container_width=True)
+
+        with st.expander("🔍 Belirli bir ayın tüm revizyon geçmişini gör"):
+            available_periods = sorted(level_df["date"].dt.strftime("%Y-%m-01").unique(), reverse=True)
+            selected_period = st.selectbox("Dönem seçin", available_periods)
+            history = database.get_revision_history(NONFARM_SERIES_ID, selected_period)
+            if history:
+                hist_df = pd.DataFrame(history)
+                hist_df.columns = ["Yayın Tarihi", "Değer", "Kaynak"]
+                st.dataframe(hist_df, use_container_width=True)
+            else:
+                st.caption("Bu dönem için kayıtlı revizyon geçmişi yok.")
 
 st.divider()
 
