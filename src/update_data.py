@@ -71,7 +71,12 @@ def main():
             database.upsert_series_points(series_id, points)
             # Bu anda BLS'in gördüğü değerleri kendi revizyon geçmişimize de
             # "snapshot" olarak kaydediyoruz (FRED karşılığı olmayan seriler için).
-            database.snapshot_current_as_revision(series_id, points)
+            # ÖNEMLİ: FRED eşlemesi olan seriler için BUNU ATLIYORUZ, çünkü BLS'in
+            # verdiği ham değer SEVİYE (level), FRED'den çektiğimiz ise AYLIK
+            # DEĞİŞİM (units=chg) — ikisini aynı tabloda karıştırmak revizyon
+            # hesaplamasını bozar.
+            if series_id not in FRED_SERIES_MAP:
+                database.snapshot_current_as_revision(series_id, points)
             print(f"  ✓ {series_id} ({meta['name']}): {len(points)} veri noktası")
         else:
             print(f"  ! {series_id} ({meta['name']}): veri dönmedi")
