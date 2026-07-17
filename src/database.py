@@ -61,6 +61,21 @@ def init_db():
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_series_data_sid ON series_data(series_id)"
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS revisions (
+                series_id TEXT NOT NULL,
+                ref_date TEXT NOT NULL,
+                realtime_start TEXT NOT NULL,
+                value REAL,
+                source TEXT NOT NULL,
+                PRIMARY KEY (series_id, ref_date, realtime_start)
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_revisions_sid_ref ON revisions(series_id, ref_date)"
+        )
         conn.commit()
 
 
@@ -145,6 +160,95 @@ def get_series_dataframe(series_id: str):
         df["year"].astype(str) + "-" + df["month"].astype(str) + "-01"
     )
     return df
+
+
+def upsert_revisions(series_id: str, rows: list, source: str):
+    """rows: [{"ref_date": "2024-01-01", "realtime_start": "2024-02-02", "value": 123.4}, ...]"""
+    with get_connection() as conn:
+        conn.executemany(
+            """
+            INSERT INTO revisions (series_id, ref_date, realtime_start, value, source)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(series_id, ref_date, realtime_start) DO UPDATE SET
+                value=excluded.value,
+                source=excluded.source
+            """,
+            [
+                (series_id, r["ref_date"], r["realtime_start"], r["value"], source)
+                for r in rows
+            ],
+        )
+        conn.commit()
+
+
+def snapshot_current_as_revision(series_id: str, points: list):
+    """
+    update_data.py her çalıştığında, o anki (BLS'in en güncel gördüğü) değerleri
+    'source=snapshot' olarak revisions tablosuna da yazar. Böylece FRED/ALFRED
+    karşılığı olmayan seriler için de zamanla kendi revizyon geçmişimiz oluşur.
+    Aynı gün içinde tekrar çalıştırılırsa üzerine yazar (aynı gün = tek kayıt).
+    """
+    today = datetime.now(timezone.utc).date().isoformat()
+    rows = []
+    for p in points:
+        month = p["period"].replace("M", "")
+        if not month.isdigit() or p["period"] == "M13":
+            continue
+        ref_date = f"{p['year']}-{int(month):02d}-01"
+        value = _safe_float(p["value"])
+        if value is not None:
+            rows.append({"ref_date": ref_date, "realtime_start": today, "value": value})
+    if rows:
+        upsert_revisions(series_id, rows, source="snapshot")
+
+
+def get_revision_history(series_id: str, ref_date: str):
+    """Belirli bir dönem (ref_date) için tüm vintage kayıtlarını, tarih sırasıyla döner."""
+    with get_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT realtime_start, value, source
+            FROM revisions
+            WHERE series_id = ? AND ref_date = ?
+            ORDER BY realtime_start ASC
+            """,
+            (series_id, ref_date),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_initial_vs_latest(series_id: str, n_periods: int = 12):
+    """
+    Son n_periods ay için ilk açıklanan (en erken realtime_start) değer ile
+    en güncel (en son realtime_start) değeri karşılaştıran bir tablo döner.
+    """
+    import pandas as pd
+
+    with get_connection() as conn:
+        df = pd.read_sql_query(
+            """
+            SELECT ref_date, realtime_start, value
+            FROM revisions
+            WHERE series_id = ?
+            ORDER BY ref_date ASC, realtime_start ASC
+            """,
+            conn,
+            params=(series_id,),
+        )
+    if df.empty:
+        return df
+
+    grouped = df.groupby("ref_date")
+    result = grouped.agg(
+        ilk_aciklanan=("value", "first"),
+        son_revize=("value", "last"),
+        revizyon_sayisi=("value", "count"),
+    ).reset_index()
+    result["fark"] = result["son_revize"] - result["ilk_aciklanan"]
+    result["ref_date"] = pd.to_datetime(result["ref_date"])
+    result = result.sort_values("ref_date").tail(n_periods)
+    return result
 
 
 def get_last_update_time():
