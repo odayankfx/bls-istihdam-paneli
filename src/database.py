@@ -218,10 +218,14 @@ def get_revision_history(series_id: str, ref_date: str):
         return [dict(r) for r in rows]
 
 
-def get_initial_vs_latest(series_id: str, n_periods: int = 12):
+def get_initial_vs_latest(series_id: str, n_periods: int = None):
     """
-    Son n_periods ay için ilk açıklanan (en erken realtime_start) değer ile
-    en güncel (en son realtime_start) değeri karşılaştıran bir tablo döner.
+    İlk açıklanan (en erken realtime_start) değer ile en güncel (en son
+    realtime_start) değeri karşılaştıran bir tablo döner.
+
+    n_periods=None ise TÜM geçmiş döner (kullanıcı panelden tarih aralığı
+    seçip filtreleyebilsin diye). Bir sayı verilirse sadece son n_periods
+    ay döner.
     """
     import pandas as pd
 
@@ -247,7 +251,9 @@ def get_initial_vs_latest(series_id: str, n_periods: int = 12):
     ).reset_index()
     result["fark"] = result["son_revize"] - result["ilk_aciklanan"]
     result["ref_date"] = pd.to_datetime(result["ref_date"])
-    result = result.sort_values("ref_date").tail(n_periods)
+    result = result.sort_values("ref_date")
+    if n_periods is not None:
+        result = result.tail(n_periods)
     return result
 
 
