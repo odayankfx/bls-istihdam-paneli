@@ -31,7 +31,14 @@ FRED_SERIES_MAP = {
 }
 
 
-def _fetch_observations(fred_series_id: str, api_key: str, output_type: int, start_date: str):
+def _fetch_observations(
+    fred_series_id: str,
+    api_key: str,
+    output_type: int,
+    start_date: str,
+    realtime_start: str = None,
+    realtime_end: str = None,
+):
     params = {
         "series_id": fred_series_id,
         "api_key": api_key,
@@ -39,6 +46,16 @@ def _fetch_observations(fred_series_id: str, api_key: str, output_type: int, sta
         "observation_start": start_date,
         "output_type": output_type,
     }
+    # "İlk açıklanan" (output_type=4) sorgusu, hangi tarihlerde ilk açıklamalar
+    # yapıldığını bulmak için TÜM geçmişi taraması gerekir. Varsayılan
+    # realtime_start/realtime_end sadece "bugünü" kapsadığından (tek günlük
+    # pencere), geçmişteki ilk açıklama tarihlerini bulamayıp 400 hatası verir.
+    # Bu yüzden bu durumda geniş bir aralık belirtiyoruz.
+    if realtime_start:
+        params["realtime_start"] = realtime_start
+    if realtime_end:
+        params["realtime_end"] = realtime_end
+
     response = requests.get(FRED_BASE_URL, params=params, timeout=60)
     if response.status_code != 200:
         # FRED, hatanın gerçek sebebini gövdede (body) döndürür; onu görünür kılıyoruz.
@@ -75,6 +92,15 @@ def fetch_vintage_observations(fred_series_id: str, api_key: str, start_date: st
         realtime_start -> bu değerin bu haliyle geçerli olduğu tarih
         value          -> o andaki değer
     """
-    initial = _fetch_observations(fred_series_id, api_key, output_type=4, start_date=start_date)
+    # "İlk açıklanan" için geniş bir realtime aralığı gerekir (bkz. yukarıdaki not).
+    initial = _fetch_observations(
+        fred_series_id,
+        api_key,
+        output_type=4,
+        start_date=start_date,
+        realtime_start="1900-01-01",
+        realtime_end="9999-12-31",
+    )
+    # "Güncel" (en son revize) değer için varsayılan davranış (bugünün penceresi) doğrudur.
     current = _fetch_observations(fred_series_id, api_key, output_type=1, start_date=start_date)
     return initial + current
