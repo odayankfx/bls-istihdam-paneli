@@ -13,9 +13,20 @@ ilk açıklandığında X'ti, sonra Y'ye revize edildi") için FRED'in iki farkl
     output_type=1  -> "Observations by Real-Time Period" (varsayılan): o an
                       bilinen EN GÜNCEL (son revize) değer.
 
-Bu ikisini karşılaştırarak "ilk açıklanan vs güncel" farkını hesaplıyoruz.
-(Not: Daha önce kullanılan output_type=2 "tüm vintage" modu, bazı serilerde
-beklenmedik bir JSON yapısı döndürdüğü için bu yönteme geçildi.)
+ÖNEMLİ: units="chg" parametresiyle FRED'den SEVİYE (level, örn. 158,736,000
+kişi) değil, doğrudan AYLIK DEĞİŞİM (örn. "+115,000" gibi BLS'in manşette
+verdiği rakam) çekiyoruz. Bunun sebebi: seviye üzerinden ilk/güncel farkı
+almak, önceki ayların da revize olması yüzünden yanıltıcı bir "kümülatif
+sürüklenme" verir (örn. Şubat'ın seviyesi revize olunca Nisan'ın seviyesi de
+otomatik kayar). Değişim (chg) üzerinden çalışmak, doğrudan BLS'in
+"X ay Y bin kişi revize edildi" şeklindeki resmi anlatımıyla eşleşir.
+
+Not: Buradaki "ilk açıklanan vs güncel" karşılaştırması, o ayın İLK YAYIN
+tarihinden BUGÜNE KADAR biriken TOPLAM revizyonu gösterir — BLS'in her ay
+haber bültenlerinde verdiği "bir önceki rapora göre X bin revize edildi"
+(yani sadece SON revizyon adımı) ile birebir aynı sayı olmayabilir. Belirli
+bir ayın tüm revizyon adımlarını (her yayın tarihindeki değeriyle) görmek
+için sayfadaki "Belirli bir ayın tüm revizyon geçmişini gör" bölümünü kullanın.
 
 Ücretsiz API anahtarı: https://fred.stlouisfed.org/docs/api/api_key.html
 """
@@ -45,6 +56,7 @@ def _fetch_observations(
         "file_type": "json",
         "observation_start": start_date,
         "output_type": output_type,
+        "units": "chg",  # SEVİYE değil, AYLIK DEĞİŞİM (BLS'in manşet rakamı)
     }
     # "İlk açıklanan" (output_type=4) sorgusu, hangi tarihlerde ilk açıklamalar
     # yapıldığını bulmak için TÜM geçmişi taraması gerekir. Varsayılan
