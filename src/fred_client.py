@@ -40,7 +40,11 @@ def _fetch_observations(fred_series_id: str, api_key: str, output_type: int, sta
         "output_type": output_type,
     }
     response = requests.get(FRED_BASE_URL, params=params, timeout=60)
-    response.raise_for_status()
+    if response.status_code != 200:
+        # FRED, hatanın gerçek sebebini gövdede (body) döndürür; onu görünür kılıyoruz.
+        raise RuntimeError(
+            f"FRED API hata döndürdü (HTTP {response.status_code}): {response.text[:500]}"
+        )
     data = response.json()
 
     if "observations" not in data:
