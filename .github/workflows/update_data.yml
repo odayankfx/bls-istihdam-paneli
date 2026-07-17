@@ -2,8 +2,10 @@ name: BLS Verisini Güncelle
 
 on:
   schedule:
+    # Her Pazartesi 09:00 UTC — BLS'in Employment Situation raporu
+    # her ayın ilk cuma günü yayınlanır, haftalık kontrol yeterlidir.
     - cron: "0 9 * * 1"
-  workflow_dispatch: {}
+  workflow_dispatch: {}   # Actions sekmesinden manuel de tetiklenebilir
 
 permissions:
   contents: write
@@ -26,6 +28,7 @@ jobs:
       - name: BLS'ten veriyi çek ve SQLite'a yaz
         env:
           BLS_API_KEY: ${{ secrets.BLS_API_KEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
         run: python -m src.update_data --years 15
 
       - name: Değişiklik varsa commit ve push yap
