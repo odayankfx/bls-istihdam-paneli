@@ -19,6 +19,7 @@ import streamlit as st
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src import database, report_utils
+from src.series_catalog import get_by_category
 
 NONFARM_SERIES_ID = "CES0000000001"
 
@@ -26,6 +27,11 @@ database.init_db()
 
 st.title("📈 Tarım Dışı İstihdam — Derinlemesine Analiz")
 st.caption("Kaynak: BLS Current Employment Statistics (CES) + FRED/ALFRED (revizyon geçmişi)")
+
+
+@st.cache_data(ttl=300)
+def load_series(series_id: str) -> pd.DataFrame:
+    return database.get_series_dataframe(series_id)
 
 
 @st.cache_data(ttl=300)
@@ -104,11 +110,15 @@ st.divider()
 
 # ============================================================== 2b) Aylık rapor tablosu
 st.subheader("📅 Aylık Rapor Tablosu")
-st.caption("Her ay için değer, aylık değişim ve yıllık değişim — rapor formatında.")
+st.caption(
+    "Her ay için değer, aylık değişim ve yıllık değişim — rapor formatında. "
+    "Bir satıra (tarihe) tıklayarak o ayın sektörel kırılımını görebilirsiniz."
+)
 
 report_table = report_utils.build_compact_report_table(level_df)
+
 if not report_table.empty:
-    st.dataframe(
+    select_event = st.dataframe(
         report_table.style.format(
             {
                 "Değer": "{:,.1f}",
@@ -121,6 +131,9 @@ if not report_table.empty:
         ),
         use_container_width=True,
         height=400,
+        on_select="rerun",
+        selection_mode="single-row",
+        key="nonfarm_report_table",
     )
     st.download_button(
         "CSV olarak indir",
@@ -128,6 +141,86 @@ if not report_table.empty:
         file_name="tarim_disi_istihdam_aylik_rapor.csv",
         mime="text/csv",
     )
+
+    selected_rows = select_event.selection.rows if select_event and select_event.selection else []
+
+    if selected_rows:
+        selected_period = report_table.iloc[selected_rows[0]]["Dönem"]  # "YYYY-MM"
+        selected_date = pd.to_datetime(selected_period + "-01")
+
+        with st.container(border=True):
+            st.markdown(f"### 🔎 {selected_date.strftime('%B %Y')} — Sektörel Kırılım")
+
+            industry_series = get_by_category("Industry")
+            industry_data = {
+                meta["name"]: load_series(sid) for sid, meta in industry_series.items()
+            }
+
+            # ---- 1) Bar grafik: başlık değişimi vs sektörlerin değişimi (o ay) ----
+            st.markdown("**1) O Ayki Değişim: Toplam vs Sektörler**")
+            bar_data = report_utils.build_breakdown_bar_for_date(
+                selected_date, "Toplam Tarım Dışı İstihdam", level_df, industry_data
+            )
+            if bar_data.empty:
+                st.info("Bu ay için sektörel veri bulunamadı.")
+            else:
+                bar_data = bar_data.sort_values("Değişim")
+                fig_breakdown = go.Figure()
+                fig_breakdown.add_trace(
+                    go.Bar(
+                        x=bar_data["Değişim"],
+                        y=bar_data["Kategori"],
+                        orientation="h",
+                        marker_color=[
+                            "#1f77b4" if t == "Başlık" else ("#2ca02c" if v >= 0 else "#d62728")
+                            for t, v in zip(bar_data["TipGrubu"], bar_data["Değişim"])
+                        ],
+                        text=bar_data["Değişim"].map(lambda v: f"{v:+,.0f}K"),
+                        textposition="outside",
+                    )
+                )
+                fig_breakdown.update_layout(
+                    height=max(300, 40 * len(bar_data)),
+                    margin=dict(l=10, r=10, t=10, b=10),
+                    xaxis_title="Aylık Değişim (Bin Kişi)",
+                )
+                st.plotly_chart(fig_breakdown, use_container_width=True)
+
+            # ---- 2) Sektörlerin yıllık % değişimi (çizgi) ----
+            st.markdown("**2) Sektörlerin Yıllık % Değişimi (Zaman İçinde)**")
+            yoy_lines = report_utils.build_pct_change_lines(industry_data, pct_type="yoy")
+            if not yoy_lines.empty:
+                fig_yoy = px.line(
+                    yoy_lines, x="date", y="Değişim %", color="Kategori",
+                    labels={"date": "Tarih", "Değişim %": "Yıllık Değişim %"},
+                )
+                fig_yoy.add_vline(x=selected_date, line_dash="dot", line_color="gray")
+                fig_yoy.update_layout(
+                    height=400,
+                    margin=dict(l=10, r=10, t=10, b=10),
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.4),
+                    hovermode="x unified",
+                )
+                st.plotly_chart(fig_yoy, use_container_width=True)
+
+            # ---- 3) Sektörlerin aylık % değişimi (çizgi) ----
+            st.markdown("**3) Sektörlerin Aylık % Değişimi (Zaman İçinde)**")
+            mom_lines = report_utils.build_pct_change_lines(industry_data, pct_type="mom")
+            if not mom_lines.empty:
+                fig_mom = px.line(
+                    mom_lines, x="date", y="Değişim %", color="Kategori",
+                    labels={"date": "Tarih", "Değişim %": "Aylık Değişim %"},
+                )
+                fig_mom.add_vline(x=selected_date, line_dash="dot", line_color="gray")
+                fig_mom.update_layout(
+                    height=400,
+                    margin=dict(l=10, r=10, t=10, b=10),
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.4),
+                    hovermode="x unified",
+                )
+                st.plotly_chart(fig_mom, use_container_width=True)
+    else:
+        st.caption("👆 Sektörel kırılımı görmek için tablodan bir satır (tarih) seçin.")
 
 st.divider()
 
