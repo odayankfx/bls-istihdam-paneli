@@ -38,6 +38,34 @@ def _year_chunks(start_year: int, end_year: int, span: int):
         y = y_end + 1
 
 
+def _post_with_retry(payload, max_retries=3, timeout=60):
+    """
+    BLS sunucusu zaman zaman geçici olarak yavaş kalabiliyor (timeout) ya da
+    bağlantı hatası verebiliyor. Bu durumlarda kısa bir bekleme ile 3 kez
+    tekrar dener; hepsi başarısız olursa son hatayı yükseltir.
+    """
+    last_exc = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = requests.post(
+                BLS_API_URL,
+                data=json.dumps(payload),
+                headers={"Content-type": "application/json"},
+                timeout=timeout,
+            )
+            response.raise_for_status()
+            return response
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as exc:
+            last_exc = exc
+            wait = 5 * attempt
+            print(
+                f"  [UYARI] BLS API'ye bağlanırken sorun oluştu (deneme {attempt}/{max_retries}): "
+                f"{exc}. {wait} saniye sonra tekrar denenecek..."
+            )
+            time.sleep(wait)
+    raise last_exc
+
+
 def fetch_series(series_ids, start_year, end_year, api_key=None):
     """
     Verilen seri ID listesi için start_year-end_year aralığındaki veriyi çeker.
@@ -56,13 +84,7 @@ def fetch_series(series_ids, start_year, end_year, api_key=None):
             if api_key:
                 payload["registrationkey"] = api_key
 
-            response = requests.post(
-                BLS_API_URL,
-                data=json.dumps(payload),
-                headers={"Content-type": "application/json"},
-                timeout=30,
-            )
-            response.raise_for_status()
+            response = _post_with_retry(payload)
             data = response.json()
 
             if data.get("status") != "REQUEST_SUCCEEDED":
