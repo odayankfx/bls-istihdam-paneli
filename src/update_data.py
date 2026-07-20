@@ -1,5 +1,5 @@
 """
-Veriyi BLS API'sinden çekip yerel SQLite veritabanına yazan script.
+Veriyi BLS ve FRED API'lerinden çekip yerel SQLite veritabanına yazan script.
 
 Kullanım:
     python -m src.update_data                 # son 10 yılı çeker
@@ -8,11 +8,12 @@ Kullanım:
 
 Ortam değişkenleri (.env dosyasından okunur):
     BLS_API_KEY   : (opsiyonel ama önerilir) BLS kayıt anahtarı
-    FRED_API_KEY  : (opsiyonel ama önerilir) FRED/ALFRED anahtarı — revizyon geçmişi için
+    FRED_API_KEY  : (ADP verisi ve Tarım Dışı İstihdam revizyonları için GEREKLİ)
     DB_PATH       : (opsiyonel) SQLite dosya yolu, varsayılan data/employment.db
 
-BLS'in Employment Situation raporu her ayın ilk cuma günü yayınlanır;
-bu script'i haftada bir (örn. cron ile) çalıştırmak güncel kalmak için yeterlidir.
+BLS'in Employment Situation raporu her ayın ilk cuma günü, ADP raporu ise
+genelde bir gün önce yayınlanır; bu script'i haftada bir (örn. cron ile)
+çalıştırmak güncel kalmak için yeterlidir.
 """
 
 import argparse
@@ -26,14 +27,14 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.series_catalog import SERIES_CATALOG, get_series_ids
 from src.bls_client import fetch_series
-from src.fred_client import fetch_vintage_observations, FRED_SERIES_MAP
+from src.fred_client import fetch_vintage_observations, fetch_level_series, FRED_SERIES_MAP
 from src import database
 
 
 def main():
     load_dotenv()
 
-    parser = argparse.ArgumentParser(description="BLS istihdam verisini güncelle")
+    parser = argparse.ArgumentParser(description="İstihdam verisini güncelle")
     parser.add_argument("--years", type=int, default=10, help="Kaç yıl geriye gidilsin")
     parser.add_argument("--start", type=int, default=None, help="Başlangıç yılı (opsiyonel)")
     parser.add_argument("--end", type=int, default=None, help="Bitiş yılı (opsiyonel)")
@@ -48,19 +49,28 @@ def main():
     end_year = args.end or current_year
     start_year = args.start or (end_year - args.years + 1)
 
-    api_key = os.environ.get("BLS_API_KEY")
-    if not api_key:
+    bls_api_key = os.environ.get("BLS_API_KEY")
+    if not bls_api_key:
         print(
             "[UYARI] BLS_API_KEY bulunamadı. Kayıtsız modda devam ediliyor "
             "(çok daha düşük günlük limit). .env dosyasına anahtar eklemeniz önerilir."
         )
 
+    fred_api_key = os.environ.get("FRED_API_KEY")
+    if not fred_api_key:
+        print(
+            "[UYARI] FRED_API_KEY bulunamadı. ADP verisi ve Tarım Dışı İstihdam "
+            "revizyonları atlanacak. Ücretsiz anahtar: "
+            "https://fred.stlouisfed.org/docs/api/api_key.html"
+        )
+
     database.init_db()
 
-    series_ids = get_series_ids()
-    print(f"{len(series_ids)} seri, {start_year}-{end_year} yılları için çekiliyor...")
+    # ---------------- BLS kaynaklı seriler ----------------
+    bls_series_ids = get_series_ids(source="bls")
+    print(f"{len(bls_series_ids)} BLS serisi, {start_year}-{end_year} yılları için çekiliyor...")
 
-    results = fetch_series(series_ids, start_year, end_year, api_key=api_key)
+    results = fetch_series(bls_series_ids, start_year, end_year, api_key=bls_api_key)
 
     for series_id, points in results.items():
         meta = SERIES_CATALOG[series_id]
@@ -81,9 +91,33 @@ def main():
         else:
             print(f"  ! {series_id} ({meta['name']}): veri dönmedi")
 
-    # ---------------- FRED/ALFRED üzerinden gerçek revizyon geçmişi ----------------
+    # ---------------- FRED kaynaklı seriler (örn. ADP) ----------------
+    fred_series_ids = get_series_ids(source="fred")
+    if fred_series_ids:
+        if not fred_api_key:
+            print(f"[UYARI] {len(fred_series_ids)} FRED serisi (ADP dahil) FRED_API_KEY olmadığı için atlanıyor.")
+        else:
+            print(f"{len(fred_series_ids)} FRED serisi çekiliyor...")
+            for series_id in fred_series_ids:
+                meta = SERIES_CATALOG[series_id]
+                database.upsert_series_meta(
+                    series_id, meta["name"], meta["category"], meta["units"]
+                )
+                try:
+                    points = fetch_level_series(
+                        series_id, fred_api_key, start_date=f"{start_year}-01-01"
+                    )
+                    if points:
+                        database.upsert_series_points(series_id, points)
+                        database.snapshot_current_as_revision(series_id, points)
+                        print(f"  ✓ {series_id} ({meta['name']}): {len(points)} veri noktası")
+                    else:
+                        print(f"  ! {series_id} ({meta['name']}): veri dönmedi")
+                except Exception as exc:
+                    print(f"  ! {series_id} ({meta['name']}) çekimi başarısız: {exc}")
+
+    # ---------------- FRED/ALFRED üzerinden gerçek revizyon geçmişi (Tarım Dışı İstihdam) ----------------
     if not args.skip_revisions:
-        fred_api_key = os.environ.get("FRED_API_KEY")
         if not fred_api_key:
             print(
                 "[UYARI] FRED_API_KEY bulunamadı, ALFRED revizyon geçmişi atlanıyor. "
