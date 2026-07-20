@@ -1,11 +1,14 @@
 """
-BLS (Bureau of Labor Statistics) seri kataloğu.
+İstihdam veri kataloğu.
 
 Her giriş şu bilgileri taşır:
-    series_id   : BLS API'de kullanılan resmi seri kodu
+    series_id   : Kaynağın kendi seri kodu (BLS için BLS kodu, FRED için FRED kodu)
     name        : Panelde gösterilecek okunabilir isim
-    category    : "Headline" | "Industry" | "Demographic"
+    category    : "Headline" | "Industry" | "Demographic" | "ADP" | "ADP - İşletme Büyüklüğü"
     units       : "percent" | "thousands" | "index" gibi birim bilgisi
+    source      : "bls" (varsayılan, belirtilmezse) veya "fred" — verinin hangi
+                  API'den çekileceğini belirler. BLS serileri src/bls_client.py,
+                  FRED serileri src/fred_client.py üzerinden çekilir.
 
 NOT: BLS zaman zaman seri kodlarını günceller / emekliye ayırır.
 Bir seri artık veri döndürmüyorsa https://data.bls.gov/cgi-bin/surveymost
@@ -130,11 +133,98 @@ SERIES_CATALOG = {
         "category": "Demographic",
         "units": "percent",
     },
+
+    # ---------------- ADP National Employment Report (FRED üzerinden) ----------------
+    # ADP, BLS'ten bağımsız, özel sektör bordro verisine dayanan kendi raporunu
+    # yayınlar. Resmi bir hükümet API'si yok, ama FRED bu veriyi de barındırıyor.
+    "ADPMNUSNERSA": {
+        "name": "ADP Toplam Özel Sektör İstihdamı",
+        "category": "ADP",
+        "units": "thousands",
+        "source": "fred",
+    },
+    "ADPMINDMANNERSA": {
+        "name": "ADP - İmalat Sanayi",
+        "category": "ADP",
+        "units": "thousands",
+        "source": "fred",
+    },
+    "ADPMINDCONNERSA": {
+        "name": "ADP - İnşaat",
+        "category": "ADP",
+        "units": "thousands",
+        "source": "fred",
+    },
+    "ADPMINDPROBUSNERSA": {
+        "name": "ADP - Profesyonel ve İş Hizmetleri",
+        "category": "ADP",
+        "units": "thousands",
+        "source": "fred",
+    },
+    "ADPMINDEDHLTNERSA": {
+        "name": "ADP - Eğitim ve Sağlık Hizmetleri",
+        "category": "ADP",
+        "units": "thousands",
+        "source": "fred",
+    },
+    "ADPMINDINFONERSA": {
+        "name": "ADP - Bilgi Sektörü",
+        "category": "ADP",
+        "units": "thousands",
+        "source": "fred",
+    },
+    "ADPMINDLSHPNERSA": {
+        "name": "ADP - Boş Zaman ve Konaklama",
+        "category": "ADP",
+        "units": "thousands",
+        "source": "fred",
+    },
+
+    # ---------------- ADP - İşletme büyüklüğüne göre kırılım ----------------
+    # Bu kırılım sadece ADP'de var, BLS'te karşılığı yok — ADP'nin kendi
+    # müşteri bordrolarından geldiği için işletme büyüklüğüne göre de
+    # ayrıştırabiliyor.
+    "ADPMES1T19ENERSA": {
+        "name": "ADP - Küçük İşletme (1-19 çalışan)",
+        "category": "ADP - İşletme Büyüklüğü",
+        "units": "thousands",
+        "source": "fred",
+    },
+    "ADPMES20T49ENERSA": {
+        "name": "ADP - Küçük İşletme (20-49 çalışan)",
+        "category": "ADP - İşletme Büyüklüğü",
+        "units": "thousands",
+        "source": "fred",
+    },
+    "ADPMES50T249ENERSA": {
+        "name": "ADP - Orta Ölçekli İşletme (50-249 çalışan)",
+        "category": "ADP - İşletme Büyüklüğü",
+        "units": "thousands",
+        "source": "fred",
+    },
+    "ADPMES250T499ENERSA": {
+        "name": "ADP - Orta Ölçekli İşletme (250-499 çalışan)",
+        "category": "ADP - İşletme Büyüklüğü",
+        "units": "thousands",
+        "source": "fred",
+    },
+    "ADPMES500PENERSA": {
+        "name": "ADP - Büyük İşletme (500+ çalışan)",
+        "category": "ADP - İşletme Büyüklüğü",
+        "units": "thousands",
+        "source": "fred",
+    },
 }
 
 
-def get_series_ids():
-    return list(SERIES_CATALOG.keys())
+def get_series_ids(source: str = None):
+    """source=None -> tüm seriler. source='bls' ya da 'fred' -> sadece o kaynağa ait seriler."""
+    if source is None:
+        return list(SERIES_CATALOG.keys())
+    return [
+        sid for sid, meta in SERIES_CATALOG.items()
+        if meta.get("source", "bls") == source
+    ]
 
 
 def get_by_category(category: str):
