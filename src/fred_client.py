@@ -23,6 +23,9 @@ hesaplıyoruz:
 Performans için "ilk açıklanan değişim" hesaplaması sadece son ~3 yılla
 sınırlı tutulur (PRECISE_YEARS); daha eski aylar için bu hesap atlanır.
 
+Ayrıca fetch_level_series(): FRED'den doğrudan bir seviye serisini (örn. ADP
+istihdam serileri) çekip bizim BLS ile aynı ortak formatımıza dönüştürür.
+
 Ücretsiz API anahtarı: https://fred.stlouisfed.org/docs/api/api_key.html
 """
 
@@ -185,3 +188,37 @@ def fetch_vintage_observations(fred_series_id: str, api_key: str, start_date: st
     )
 
     return initial_changes + current_changes
+
+
+def fetch_level_series(fred_series_id: str, api_key: str, start_date: str = "2010-01-01"):
+    """
+    FRED'den doğrudan bir seviye serisini (örn. ADP istihdam serileri) çekip
+    bizim BLS ile aynı ortak formatımıza (year, period, periodName, value,
+    footnotes) dönüştürür — böylece update_data.py ve database.py, verinin
+    BLS'ten mi FRED'ten mi geldiğini bilmeden aynı şekilde işleyebilir.
+
+    Değer, BLS ile tutarlı olması için "Persons" yerine "Bin Kişi" (thousands)
+    birimine çevrilir (1000'e bölünür).
+    """
+    observations = _fetch_observations(
+        fred_series_id, api_key, output_type=1, units="lin", start_date=start_date
+    )
+
+    month_names = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+    ]
+
+    points = []
+    for obs in observations:
+        y, m, _d = (int(x) for x in obs["ref_date"].split("-"))
+        points.append(
+            {
+                "year": y,
+                "period": f"M{m:02d}",
+                "periodName": month_names[m - 1],
+                "value": str(obs["value"] / 1000.0),
+                "footnotes": "",
+            }
+        )
+    return points
