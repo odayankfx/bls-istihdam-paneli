@@ -169,3 +169,106 @@ def build_pct_change_lines(breakdown_dict: dict, pct_type: str = "yoy"):
     if not frames:
         return pd.DataFrame()
     return pd.concat(frames, ignore_index=True)
+
+
+def render_pct_change_chart(df_long: pd.DataFrame, key_prefix: str, vline_date=None):
+    """
+    Bir % değişim çizgi grafiğini, üstünde tarih aralığı seçici ve y ekseni
+    (ızgara aralığı) kontrolleriyle birlikte render eder.
+
+    Neden gerekli: bazı alt kategorilerde (örn. küçük bir sektörde) tek bir ay
+    aşırı yüksek/düşük bir % değişim gösterebilir; bu durum y eksenini o tek
+    uç değere göre ölçekleyip diğer tüm çizgileri düz bir çizgiye sıkıştırır.
+    Varsayılan olarak eksen aralığını uç değerleri dışlayan bir persentil
+    bandına (5-95) göre ayarlıyoruz; kullanıcı isterse elle genişletebilir.
+
+    df_long   : date, Kategori, Değişim % kolonlarını içeren uzun format DataFrame
+                (build_pct_change_lines çıktısı)
+    key_prefix: Streamlit widget key çakışmalarını önlemek için benzersiz önek
+    vline_date: (opsiyonel) grafikte dikey referans çizgisi çizilecek tarih
+    """
+    import streamlit as st
+    import plotly.express as px
+
+    if df_long.empty:
+        st.info("Bu görünüm için veri yok.")
+        return
+
+    min_date = df_long["date"].min().date()
+    max_date = df_long["date"].max().date()
+
+    date_range = st.slider(
+        "Tarih aralığı",
+        min_value=min_date,
+        max_value=max_date,
+        value=(min_date, max_date),
+        format="MM/YYYY",
+        key=f"{key_prefix}_daterange",
+    )
+
+    filtered = df_long[
+        (df_long["date"].dt.date >= date_range[0]) & (df_long["date"].dt.date <= date_range[1])
+    ]
+
+    if filtered.empty:
+        st.info("Seçilen tarih aralığında veri yok.")
+        return
+
+    values = filtered["Değişim %"].dropna()
+    if values.empty:
+        st.info("Seçilen tarih aralığında veri yok.")
+        return
+
+    # Varsayılan y ekseni aralığı: uç değerleri dışlayan 5-95 persentil bandı + biraz pay.
+    p_low, p_high = values.quantile(0.05), values.quantile(0.95)
+    pad = max((p_high - p_low) * 0.2, 0.5)
+    default_min = round(float(p_low - pad), 1)
+    default_max = round(float(p_high + pad), 1)
+    data_min = round(float(values.min()), 1)
+    data_max = round(float(values.max()), 1)
+
+    auto_scale = st.checkbox(
+        "Tüm uç değerleri göster (otomatik ölçekle)",
+        value=False,
+        key=f"{key_prefix}_autoscale",
+        help="İşaretlerseniz eksen, en uçtaki değere göre otomatik ayarlanır — "
+             "bu, aşırı bir uç değer varsa diğer çizgileri düzleştirebilir.",
+    )
+
+    y_range = None
+    if auto_scale:
+        y_range = [data_min - abs(data_min) * 0.05 - 0.5, data_max + abs(data_max) * 0.05 + 0.5]
+    else:
+        col1, col2 = st.columns(2)
+        with col1:
+            y_min = st.number_input(
+                "Y ekseni min (%)", value=default_min, step=0.5, key=f"{key_prefix}_ymin"
+            )
+        with col2:
+            y_max = st.number_input(
+                "Y ekseni max (%)", value=default_max, step=0.5, key=f"{key_prefix}_ymax"
+            )
+        y_range = [y_min, y_max]
+        if data_min < y_min or data_max > y_max:
+            st.caption(
+                f"ℹ️ Veri aralığı ({data_min:+.1f}% / {data_max:+.1f}%) seçtiğiniz eksen sınırlarının "
+                "dışına taşıyor olabilir — grafik dışı kalan noktalar kesilir. "
+                "'Tüm uç değerleri göster' kutusunu işaretleyerek hepsini görebilirsiniz."
+            )
+
+    fig = px.line(
+        filtered, x="date", y="Değişim %", color="Kategori",
+        labels={"date": "Tarih", "Değişim %": "Değişim %"},
+    )
+    if vline_date is not None:
+        vline_ts = pd.to_datetime(vline_date)
+        if filtered["date"].min() <= vline_ts <= filtered["date"].max():
+            fig.add_vline(x=vline_ts, line_dash="dot", line_color="gray")
+    fig.update_yaxes(range=y_range)
+    fig.update_layout(
+        height=420,
+        margin=dict(l=10, r=10, t=10, b=10),
+        legend=dict(orientation="h", yanchor="bottom", y=-0.4),
+        hovermode="x unified",
+    )
+    st.plotly_chart(fig, use_container_width=True)
