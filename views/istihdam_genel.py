@@ -27,6 +27,14 @@ from src.series_catalog import SERIES_CATALOG, get_categories, get_by_category
 
 database.init_db()
 
+# Bazı "başlık" serilerinin hangi kırılım kategorisiyle detaylandırılabileceğini
+# tanımlar. Bir seri burada varsa, rapor tablosunda o satıra tıklandığında
+# alt kategori kırılımı (bar + trend grafikleri) gösterilir.
+HEADLINE_BREAKDOWN_MAP = {
+    "CES0000000001": "Industry",   # Toplam Tarım Dışı İstihdam -> BLS sektörleri
+    "ADPMNUSNERSA": "ADP",         # ADP Toplam -> ADP sektörleri (kendisi hariç tutulur)
+}
+
 
 # ---------------------------------------------------------------- yardımcılar
 @st.cache_data(ttl=300)
@@ -227,7 +235,7 @@ if table_view == "Tekli seri (detaylı)":
     if compact.empty:
         st.info("Bu seri için veri yok.")
     else:
-        st.dataframe(
+        select_event = st.dataframe(
             compact.style.format(
                 {
                     "Değer": "{:,.1f}",
@@ -240,6 +248,9 @@ if table_view == "Tekli seri (detaylı)":
             ),
             use_container_width=True,
             height=400,
+            on_select="rerun",
+            selection_mode="single-row",
+            key="genel_report_table_single",
         )
         st.download_button(
             "CSV olarak indir",
@@ -248,6 +259,92 @@ if table_view == "Tekli seri (detaylı)":
             mime="text/csv",
             key="download_compact_table",
         )
+
+        selected_rows = select_event.selection.rows if select_event and select_event.selection else []
+
+        if selected_rows and single_sid in HEADLINE_BREAKDOWN_MAP:
+            selected_period = compact.iloc[selected_rows[0]]["Dönem"]
+            selected_date = pd.to_datetime(selected_period + "-01")
+
+            breakdown_category = HEADLINE_BREAKDOWN_MAP[single_sid]
+            breakdown_series = get_by_category(breakdown_category)
+            # Başlık serisinin kendisi kırılım listesindeyse çıkar (örn. ADP Toplam, ADP kategorisinde de var)
+            breakdown_data = {
+                meta["name"]: load_series(sid)
+                for sid, meta in breakdown_series.items()
+                if sid != single_sid
+            }
+
+            with st.container(border=True):
+                st.markdown(f"### 🔎 {selected_date.strftime('%B %Y')} — Kırılım Detayı")
+
+                st.markdown("**1) O Ayki Değişim: Toplam vs Alt Kategoriler**")
+                bar_data = report_utils.build_breakdown_bar_for_date(
+                    selected_date, series_in_category[single_sid]["name"], df, breakdown_data
+                )
+                if bar_data.empty:
+                    st.info("Bu ay için kırılım verisi bulunamadı.")
+                else:
+                    bar_data = bar_data.sort_values("Değişim")
+                    fig_breakdown = go.Figure()
+                    fig_breakdown.add_trace(
+                        go.Bar(
+                            x=bar_data["Değişim"],
+                            y=bar_data["Kategori"],
+                            orientation="h",
+                            marker_color=[
+                                "#1f77b4" if t == "Başlık" else ("#2ca02c" if v >= 0 else "#d62728")
+                                for t, v in zip(bar_data["TipGrubu"], bar_data["Değişim"])
+                            ],
+                            text=bar_data["Değişim"].map(lambda v: f"{v:+,.0f}K"),
+                            textposition="outside",
+                        )
+                    )
+                    fig_breakdown.update_layout(
+                        height=max(300, 40 * len(bar_data)),
+                        margin=dict(l=10, r=10, t=10, b=10),
+                        xaxis_title="Aylık Değişim (Bin Kişi)",
+                    )
+                    st.plotly_chart(fig_breakdown, use_container_width=True)
+
+                st.markdown("**2) Alt Kategorilerin Yıllık % Değişimi (Zaman İçinde)**")
+                yoy_lines = report_utils.build_pct_change_lines(breakdown_data, pct_type="yoy")
+                if not yoy_lines.empty:
+                    fig_yoy = px.line(
+                        yoy_lines, x="date", y="Değişim %", color="Kategori",
+                        labels={"date": "Tarih", "Değişim %": "Yıllık Değişim %"},
+                    )
+                    fig_yoy.add_vline(x=selected_date, line_dash="dot", line_color="gray")
+                    fig_yoy.update_layout(
+                        height=400,
+                        margin=dict(l=10, r=10, t=10, b=10),
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.4),
+                        hovermode="x unified",
+                    )
+                    st.plotly_chart(fig_yoy, use_container_width=True)
+
+                st.markdown("**3) Alt Kategorilerin Aylık % Değişimi (Zaman İçinde)**")
+                mom_lines = report_utils.build_pct_change_lines(breakdown_data, pct_type="mom")
+                if not mom_lines.empty:
+                    fig_mom = px.line(
+                        mom_lines, x="date", y="Değişim %", color="Kategori",
+                        labels={"date": "Tarih", "Değişim %": "Aylık Değişim %"},
+                    )
+                    fig_mom.add_vline(x=selected_date, line_dash="dot", line_color="gray")
+                    fig_mom.update_layout(
+                        height=400,
+                        margin=dict(l=10, r=10, t=10, b=10),
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.4),
+                        hovermode="x unified",
+                    )
+                    st.plotly_chart(fig_mom, use_container_width=True)
+        elif selected_rows and single_sid not in HEADLINE_BREAKDOWN_MAP:
+            st.caption(
+                "ℹ️ Bu seri için tanımlı bir alt kategori kırılımı yok "
+                "(şu an sadece Toplam Tarım Dışı İstihdam ve ADP Toplam için mevcut)."
+            )
+        else:
+            st.caption("👆 Kırılım detayını görmek için tablodan bir satır (tarih) seçin.")
 else:
     value_type_label = st.radio(
         "Gösterilecek değer",
