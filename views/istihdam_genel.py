@@ -309,35 +309,11 @@ if table_view == "Tekli seri (detaylı)":
 
                 st.markdown("**2) Alt Kategorilerin Yıllık % Değişimi (Zaman İçinde)**")
                 yoy_lines = report_utils.build_pct_change_lines(breakdown_data, pct_type="yoy")
-                if not yoy_lines.empty:
-                    fig_yoy = px.line(
-                        yoy_lines, x="date", y="Değişim %", color="Kategori",
-                        labels={"date": "Tarih", "Değişim %": "Yıllık Değişim %"},
-                    )
-                    fig_yoy.add_vline(x=selected_date, line_dash="dot", line_color="gray")
-                    fig_yoy.update_layout(
-                        height=400,
-                        margin=dict(l=10, r=10, t=10, b=10),
-                        legend=dict(orientation="h", yanchor="bottom", y=-0.4),
-                        hovermode="x unified",
-                    )
-                    st.plotly_chart(fig_yoy, use_container_width=True)
+                report_utils.render_pct_change_chart(yoy_lines, key_prefix="genel_yoy", vline_date=selected_date)
 
                 st.markdown("**3) Alt Kategorilerin Aylık % Değişimi (Zaman İçinde)**")
                 mom_lines = report_utils.build_pct_change_lines(breakdown_data, pct_type="mom")
-                if not mom_lines.empty:
-                    fig_mom = px.line(
-                        mom_lines, x="date", y="Değişim %", color="Kategori",
-                        labels={"date": "Tarih", "Değişim %": "Aylık Değişim %"},
-                    )
-                    fig_mom.add_vline(x=selected_date, line_dash="dot", line_color="gray")
-                    fig_mom.update_layout(
-                        height=400,
-                        margin=dict(l=10, r=10, t=10, b=10),
-                        legend=dict(orientation="h", yanchor="bottom", y=-0.4),
-                        hovermode="x unified",
-                    )
-                    st.plotly_chart(fig_mom, use_container_width=True)
+                report_utils.render_pct_change_chart(mom_lines, key_prefix="genel_mom", vline_date=selected_date)
         elif selected_rows and single_sid not in HEADLINE_BREAKDOWN_MAP:
             st.caption(
                 "ℹ️ Bu seri için tanımlı bir alt kategori kırılımı yok "
