@@ -18,7 +18,7 @@ import streamlit as st
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src import database
+from src import database, report_utils
 
 NONFARM_SERIES_ID = "CES0000000001"
 
@@ -99,6 +99,35 @@ fig_bar.update_layout(
     xaxis_title="Ay",
 )
 st.plotly_chart(fig_bar, use_container_width=True)
+
+st.divider()
+
+# ============================================================== 2b) Aylık rapor tablosu
+st.subheader("📅 Aylık Rapor Tablosu")
+st.caption("Her ay için değer, aylık değişim ve yıllık değişim — rapor formatında.")
+
+report_table = report_utils.build_compact_report_table(level_df)
+if not report_table.empty:
+    st.dataframe(
+        report_table.style.format(
+            {
+                "Değer": "{:,.1f}",
+                "Aylık Değişim": "{:+,.1f}",
+                "Aylık Değişim %": "{:+,.2f}%",
+                "Yıllık Değişim": "{:+,.1f}",
+                "Yıllık Değişim %": "{:+,.2f}%",
+            },
+            na_rep="—",
+        ),
+        use_container_width=True,
+        height=400,
+    )
+    st.download_button(
+        "CSV olarak indir",
+        data=report_table.to_csv(index=False).encode("utf-8"),
+        file_name="tarim_disi_istihdam_aylik_rapor.csv",
+        mime="text/csv",
+    )
 
 st.divider()
 
