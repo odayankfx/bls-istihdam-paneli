@@ -114,3 +114,58 @@ TREND_LABELS = {
     "flat": ("➡️", "Trende yakın"),
     None: ("", ""),
 }
+
+
+def build_breakdown_bar_for_date(ref_date, headline_name: str, headline_df: pd.DataFrame, breakdown_dict: dict):
+    """
+    Belirli bir ay (ref_date) için: başlık göstergesinin (örn. Toplam Tarım Dışı
+    İstihdam) o aydaki aylık değişimini, her bir alt kategorinin (örn. sektörler)
+    aynı aydaki değişimiyle yan yana karşılaştıran bir bar grafik verisi üretir.
+
+    Dönüş: DataFrame (Kategori, Değişim, TipGrubu) — TipGrubu "Başlık" ya da
+    "Alt Kategori" olur, grafikte renklendirme için kullanılır. Veri yoksa
+    boş DataFrame döner.
+    """
+    ref_date = pd.to_datetime(ref_date)
+    rows = []
+
+    h = headline_df.sort_values("date").reset_index(drop=True).copy()
+    h["change"] = h["value"].diff()
+    match = h[h["date"] == ref_date]
+    if not match.empty and pd.notna(match.iloc[0]["change"]):
+        rows.append({"Kategori": headline_name, "Değişim": match.iloc[0]["change"], "TipGrubu": "Başlık"})
+
+    for name, df in breakdown_dict.items():
+        if df.empty:
+            continue
+        d = df.sort_values("date").reset_index(drop=True).copy()
+        d["change"] = d["value"].diff()
+        m = d[d["date"] == ref_date]
+        if not m.empty and pd.notna(m.iloc[0]["change"]):
+            rows.append({"Kategori": name, "Değişim": m.iloc[0]["change"], "TipGrubu": "Alt Kategori"})
+
+    if not rows:
+        return pd.DataFrame()
+    return pd.DataFrame(rows)
+
+
+def build_pct_change_lines(breakdown_dict: dict, pct_type: str = "yoy"):
+    """
+    Birden çok alt kategori serisinin % değişim (aylık ya da yıllık) zaman
+    serisini tek bir grafik verisi olarak döner (uzun format DataFrame:
+    date, Kategori, Değişim %).
+
+    pct_type: "yoy" -> 12 aylık % değişim, "mom" -> aylık % değişim
+    """
+    periods = 12 if pct_type == "yoy" else 1
+    frames = []
+    for name, df in breakdown_dict.items():
+        if df.empty:
+            continue
+        d = df.sort_values("date").reset_index(drop=True).copy()
+        d["Değişim %"] = d["value"].pct_change(periods) * 100
+        d["Kategori"] = name
+        frames.append(d[["date", "Kategori", "Değişim %"]])
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True)
