@@ -189,36 +189,12 @@ if not report_table.empty:
             # ---- 2) Sektörlerin yıllık % değişimi (çizgi) ----
             st.markdown("**2) Sektörlerin Yıllık % Değişimi (Zaman İçinde)**")
             yoy_lines = report_utils.build_pct_change_lines(industry_data, pct_type="yoy")
-            if not yoy_lines.empty:
-                fig_yoy = px.line(
-                    yoy_lines, x="date", y="Değişim %", color="Kategori",
-                    labels={"date": "Tarih", "Değişim %": "Yıllık Değişim %"},
-                )
-                fig_yoy.add_vline(x=selected_date, line_dash="dot", line_color="gray")
-                fig_yoy.update_layout(
-                    height=400,
-                    margin=dict(l=10, r=10, t=10, b=10),
-                    legend=dict(orientation="h", yanchor="bottom", y=-0.4),
-                    hovermode="x unified",
-                )
-                st.plotly_chart(fig_yoy, use_container_width=True)
+            report_utils.render_pct_change_chart(yoy_lines, key_prefix="nonfarm_yoy", vline_date=selected_date)
 
             # ---- 3) Sektörlerin aylık % değişimi (çizgi) ----
             st.markdown("**3) Sektörlerin Aylık % Değişimi (Zaman İçinde)**")
             mom_lines = report_utils.build_pct_change_lines(industry_data, pct_type="mom")
-            if not mom_lines.empty:
-                fig_mom = px.line(
-                    mom_lines, x="date", y="Değişim %", color="Kategori",
-                    labels={"date": "Tarih", "Değişim %": "Aylık Değişim %"},
-                )
-                fig_mom.add_vline(x=selected_date, line_dash="dot", line_color="gray")
-                fig_mom.update_layout(
-                    height=400,
-                    margin=dict(l=10, r=10, t=10, b=10),
-                    legend=dict(orientation="h", yanchor="bottom", y=-0.4),
-                    hovermode="x unified",
-                )
-                st.plotly_chart(fig_mom, use_container_width=True)
+            report_utils.render_pct_change_chart(mom_lines, key_prefix="nonfarm_mom", vline_date=selected_date)
     else:
         st.caption("👆 Sektörel kırılımı görmek için tablodan bir satır (tarih) seçin.")
 
