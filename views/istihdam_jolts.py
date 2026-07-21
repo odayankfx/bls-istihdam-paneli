@@ -8,7 +8,8 @@ BLS'in ayrı bir anketi; işgücü talebini (iş ilanları) ve işgücü devir h
     3. Zaman serisi karşılaştırması
     4. Aylık rapor tablosu — "Toplam Ayrılmalar" seçilirse, bir tarihe tıklayınca
        bunun Gönüllü Ayrılma + İşten Çıkarma + Diğer olarak kırılımı gösterilir
-    5. Sektörel Kırılım — her JOLTS göstergesinin 15 sektördeki durumu
+    5. Sektörel Kırılım — her JOLTS göstergesinin sektörlere göre durumu,
+       son ay bar grafiği, aylık/yıllık % değişim çizgi grafikleri (sezonsallık)
 """
 
 import os
@@ -352,8 +353,58 @@ if sector_selected:
 else:
     st.info("Karşılaştırmak için en az bir sektör seçin.")
 
-st.markdown(f"**{JOLTS_METRIC_OPTIONS[selected_metric]} — Sektörler Yan Yana (Aylık Değişim Tablosu)**")
+st.markdown(f"**{JOLTS_METRIC_OPTIONS[selected_metric]} — Son Ay Değişimi (Sektörler Arası Karşılaştırma)**")
+st.caption("Her sektörün en son ayki değişimini yan yana gösterir.")
+
+bar_rows = []
+for sid, meta in sector_series.items():
+    df = sector_data.get(sid)
+    if df is None or df.empty or len(df) < 2:
+        continue
+    df_sorted = df.sort_values("date")
+    change = df_sorted["value"].iloc[-1] - df_sorted["value"].iloc[-2]
+    bar_rows.append({"Sektör": meta["jolts_industry"], "Değişim": change})
+
+if bar_rows:
+    bar_df = pd.DataFrame(bar_rows).sort_values("Değişim")
+    fig_sector_bar = go.Figure()
+    fig_sector_bar.add_trace(
+        go.Bar(
+            x=bar_df["Değişim"],
+            y=bar_df["Sektör"],
+            orientation="h",
+            marker_color=["#2ca02c" if v >= 0 else "#d62728" for v in bar_df["Değişim"]],
+            text=bar_df["Değişim"].map(lambda v: f"{v:+,.1f}K"),
+            textposition="outside",
+        )
+    )
+    fig_sector_bar.update_layout(
+        height=max(400, 28 * len(bar_df)),
+        margin=dict(l=10, r=10, t=10, b=10),
+        xaxis_title="Aylık Değişim (Bin Kişi)",
+    )
+    st.plotly_chart(fig_sector_bar, use_container_width=True)
+else:
+    st.info("Bu gösterge için veri yok.")
+
+st.markdown(f"**{JOLTS_METRIC_OPTIONS[selected_metric]} — Sektörlerin Aylık % Değişimi (Sezonsallığı Görmek İçin)**")
+st.caption(
+    "Her yıl aynı dönemde tekrar eden dalgalanmalar (örn. yaz aylarında turizm/perakende "
+    "sektöründe artış) burada 'testere dişi' desen olarak görülür — bu, sezonsal etkidir."
+)
 sector_named = {meta["jolts_industry"]: sector_data[sid] for sid, meta in sector_series.items()}
+mom_lines = report_utils.build_pct_change_lines(sector_named, pct_type="mom")
+report_utils.render_pct_change_chart(mom_lines, key_prefix=f"jolts_sector_mom_{selected_metric}")
+
+st.markdown(f"**{JOLTS_METRIC_OPTIONS[selected_metric]} — Sektörlerin Yıllık % Değişimi (Sezonsallıktan Arındırılmış Trend)**")
+st.caption(
+    "Yıllık (12 ay önceki aynı ayla kıyaslanan) değişim, sezonsal dalgalanmaları otomatik "
+    "olarak iptal eder — bu grafik sektörün altında yatan gerçek büyüme/daralma trendini gösterir."
+)
+yoy_lines = report_utils.build_pct_change_lines(sector_named, pct_type="yoy")
+report_utils.render_pct_change_chart(yoy_lines, key_prefix=f"jolts_sector_yoy_{selected_metric}")
+
+st.markdown(f"**{JOLTS_METRIC_OPTIONS[selected_metric]} — Sektörler Yan Yana (Aylık Değişim Tablosu)**")
 sector_wide = report_utils.build_wide_report_table(sector_named, value_type="change")
 if sector_wide.empty:
     st.info("Bu gösterge için veri yok.")
