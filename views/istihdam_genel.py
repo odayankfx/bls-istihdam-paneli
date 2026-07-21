@@ -103,13 +103,6 @@ st.sidebar.caption(
 
 category = st.sidebar.radio("Kırılım kategorisi", get_categories())
 
-year_range = st.sidebar.slider(
-    "Yıl aralığı",
-    min_value=2000,
-    max_value=pd.Timestamp.today().year,
-    value=(2015, pd.Timestamp.today().year),
-)
-
 # ---------------------------------------------------------------- ana başlık
 st.title("🇺🇸 ABD İstihdam Verileri — Genel Bakış")
 st.caption("Kaynak: U.S. Bureau of Labor Statistics (BLS) + FRED/ADP National Employment Report")
@@ -158,12 +151,15 @@ selected_series = st.multiselect(
 )
 
 if selected_series:
+    selected_dfs = [card_data.get(sid, load_series(sid)) for sid in selected_series]
+    ts_start, ts_end = report_utils.date_range_slider(selected_dfs, key=f"genel_ts_daterange_{category}")
+
     fig = go.Figure()
     for sid in selected_series:
         df = card_data.get(sid, load_series(sid))
         if df.empty:
             continue
-        mask = (df["year"] >= year_range[0]) & (df["year"] <= year_range[1])
+        mask = (df["date"].dt.date >= ts_start) & (df["date"].dt.date <= ts_end)
         df_filtered = df[mask]
         fig.add_trace(
             go.Scatter(
@@ -174,9 +170,10 @@ if selected_series:
             )
         )
     fig.update_layout(
+        title=f"{category} — Zaman Serisi Karşılaştırması",
         height=500,
         legend=dict(orientation="h", yanchor="bottom", y=-0.3),
-        margin=dict(l=10, r=10, t=30, b=10),
+        margin=dict(l=10, r=10, t=50, b=10),
         hovermode="x unified",
     )
     st.plotly_chart(fig, use_container_width=True)
@@ -208,7 +205,11 @@ if bar_rows:
         color_continuous_scale="Blues",
     )
     fig_bar.update_traces(texttemplate="%{text:.1f}", textposition="outside")
-    fig_bar.update_layout(height=max(300, 40 * len(bar_df)), margin=dict(l=10, r=10, t=10, b=10))
+    fig_bar.update_layout(
+        title=f"{category} — Son Dönem Kırılım Karşılaştırması",
+        height=max(300, 40 * len(bar_df)),
+        margin=dict(l=10, r=10, t=50, b=10),
+    )
     st.plotly_chart(fig_bar, use_container_width=True)
 
 st.divider()
@@ -301,19 +302,26 @@ if table_view == "Tekli seri (detaylı)":
                         )
                     )
                     fig_breakdown.update_layout(
+                        title=f"{selected_date.strftime('%B %Y')} — Toplam vs Alt Kategoriler",
                         height=max(300, 40 * len(bar_data)),
-                        margin=dict(l=10, r=10, t=10, b=10),
+                        margin=dict(l=10, r=10, t=50, b=10),
                         xaxis_title="Aylık Değişim (Bin Kişi)",
                     )
                     st.plotly_chart(fig_breakdown, use_container_width=True)
 
                 st.markdown("**2) Alt Kategorilerin Yıllık % Değişimi (Zaman İçinde)**")
                 yoy_lines = report_utils.build_pct_change_lines(breakdown_data, pct_type="yoy")
-                report_utils.render_pct_change_chart(yoy_lines, key_prefix="genel_yoy", vline_date=selected_date)
+                report_utils.render_pct_change_chart(
+                    yoy_lines, key_prefix="genel_yoy", vline_date=selected_date,
+                    title="Alt Kategorilerin Yıllık % Değişimi",
+                )
 
                 st.markdown("**3) Alt Kategorilerin Aylık % Değişimi (Zaman İçinde)**")
                 mom_lines = report_utils.build_pct_change_lines(breakdown_data, pct_type="mom")
-                report_utils.render_pct_change_chart(mom_lines, key_prefix="genel_mom", vline_date=selected_date)
+                report_utils.render_pct_change_chart(
+                    mom_lines, key_prefix="genel_mom", vline_date=selected_date,
+                    title="Alt Kategorilerin Aylık % Değişimi",
+                )
         elif selected_rows and single_sid not in HEADLINE_BREAKDOWN_MAP:
             st.caption(
                 "ℹ️ Bu seri için tanımlı bir alt kategori kırılımı yok "
@@ -388,8 +396,9 @@ if nsa_capable:
             go.Scatter(x=nsa_df["date"], y=nsa_df["value"], mode="lines", name="Ham Veri (NSA)", line=dict(dash="dot"))
         )
         fig_nsa.update_layout(
+            title=f"{nsa_capable[nsa_sid]['name']} — Mevsimsel Düzeltmeli vs Ham Veri",
             height=400,
-            margin=dict(l=10, r=10, t=20, b=10),
+            margin=dict(l=10, r=10, t=50, b=10),
             legend=dict(orientation="h", yanchor="bottom", y=-0.3),
             hovermode="x unified",
         )
