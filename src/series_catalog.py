@@ -5,7 +5,7 @@ Her giriş şu bilgileri taşır:
     series_id   : Kaynağın kendi seri kodu (BLS için BLS kodu, FRED için FRED kodu)
     name        : Panelde gösterilecek okunabilir isim
     category    : "Headline" | "Industry" | "Demographic" | "ADP" |
-                  "ADP - İşletme Büyüklüğü" | "NSA (Ham Veri)"
+                  "ADP - İşletme Büyüklüğü" | "JOLTS" | "NSA (Ham Veri)"
     units       : "percent" | "thousands" | "index" gibi birim bilgisi
     source      : "bls" (varsayılan, belirtilmezse) veya "fred" — verinin hangi
                   API'den çekileceğini belirler. BLS serileri src/bls_client.py,
@@ -239,6 +239,40 @@ SERIES_CATALOG = {
         "category": "ADP - İşletme Büyüklüğü",
         "units": "thousands",
         "source": "fred",
+    },
+
+    # ---------------- JOLTS (Job Openings and Labor Turnover Survey) ----------------
+    # BLS'in ayrı bir anketi; işgücü talebi ve devir hızını ölçer. Tamamen BLS
+    # API'sinden geldiği için ekstra bir istemciye gerek yoktur.
+    "JTS000000000000000JOL": {
+        "name": "İş İlanları (Job Openings)",
+        "category": "JOLTS",
+        "units": "thousands",
+    },
+    "JTS000000000000000HIL": {
+        "name": "İşe Alımlar (Hires)",
+        "category": "JOLTS",
+        "units": "thousands",
+    },
+    "JTS000000000000000TSL": {
+        "name": "Toplam Ayrılmalar (Total Separations)",
+        "category": "JOLTS",
+        "units": "thousands",
+    },
+    "JTS000000000000000QUL": {
+        "name": "Gönüllü İşten Ayrılmalar (Quits)",
+        "category": "JOLTS",
+        "units": "thousands",
+    },
+    "JTS000000000000000LDL": {
+        "name": "İşten Çıkarmalar (Layoffs & Discharges)",
+        "category": "JOLTS",
+        "units": "thousands",
+    },
+    "JTS000000000000000OSL": {
+        "name": "Diğer Ayrılmalar (Other Separations)",
+        "category": "JOLTS",
+        "units": "thousands",
     },
 
     # ---------------- NSA (Ham / Mevsimsel Düzeltilmemiş Veri) ----------------
