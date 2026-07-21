@@ -8,6 +8,7 @@ BLS'in ayrı bir anketi; işgücü talebini (iş ilanları) ve işgücü devir h
     3. Zaman serisi karşılaştırması
     4. Aylık rapor tablosu — "Toplam Ayrılmalar" seçilirse, bir tarihe tıklayınca
        bunun Gönüllü Ayrılma + İşten Çıkarma + Diğer olarak kırılımı gösterilir
+    5. Sektörel Kırılım — her JOLTS göstergesinin 15 sektördeki durumu
 """
 
 import os
@@ -268,6 +269,107 @@ else:
         )
     else:
         st.caption("👆 Detayı görmek için tablodan bir satır (tarih) seçin.")
+
+st.divider()
+
+# ============================================================== 5) Sektörel Kırılım
+st.subheader("🏭 Sektörel Kırılım")
+st.caption(
+    "JOLTS, her göstergeyi (iş ilanları, işe alım, ayrılmalar) sektör bazında da yayınlar. "
+    "Aşağıdan bir gösterge seçin, o göstergenin tüm sektörlerdeki durumunu görün."
+)
+
+JOLTS_METRIC_OPTIONS = {
+    "JO": "İş İlanları",
+    "HI": "İşe Alımlar",
+    "QU": "Gönüllü Ayrılmalar",
+    "LD": "İşten Çıkarmalar",
+    "OS": "Diğer Ayrılmalar",
+    "TS": "Toplam Ayrılmalar",
+}
+
+selected_metric = st.selectbox(
+    "Gösterge seçin",
+    options=list(JOLTS_METRIC_OPTIONS.keys()),
+    format_func=lambda k: JOLTS_METRIC_OPTIONS[k],
+    key="jolts_sector_metric",
+)
+
+sector_series = {
+    sid: meta
+    for sid, meta in get_by_category("JOLTS - Sektörel").items()
+    if meta["jolts_metric"] == selected_metric
+}
+sector_data = {sid: load_series(sid) for sid in sector_series}
+
+st.markdown(f"**{JOLTS_METRIC_OPTIONS[selected_metric]} — Sektörlere Göre Güncel Durum**")
+
+sector_cols = st.columns(3)
+for i, (sid, meta) in enumerate(sector_series.items()):
+    df = sector_data[sid]
+    latest, mom = latest_value_and_change(df)
+    col = sector_cols[i % 3]
+    with col:
+        industry_label = meta["jolts_industry"]
+        if latest is not None:
+            st.metric(
+                label=industry_label,
+                value=f"{latest['value']:,.0f}K",
+                delta=f"{mom:+,.0f}K (aylık)" if mom is not None else None,
+            )
+            trend = report_utils.compute_trend_indicator(df)
+            icon, _ = report_utils.TREND_LABELS[trend["direction"]]
+            if trend["direction"] is not None:
+                st.caption(icon)
+        else:
+            st.metric(label=industry_label, value="Veri yok")
+
+st.markdown(f"**{JOLTS_METRIC_OPTIONS[selected_metric]} — Zaman Serisi (Sektörler)**")
+sector_selected = st.multiselect(
+    "Grafikte gösterilecek sektörleri seçin",
+    options=list(sector_series.keys()),
+    default=list(sector_series.keys())[:4],
+    format_func=lambda sid: sector_series[sid]["jolts_industry"],
+    key="jolts_sector_multiselect",
+)
+
+if sector_selected:
+    fig_sector = go.Figure()
+    for sid in sector_selected:
+        df = sector_data.get(sid)
+        if df is None or df.empty:
+            continue
+        fig_sector.add_trace(
+            go.Scatter(x=df["date"], y=df["value"], mode="lines", name=sector_series[sid]["jolts_industry"])
+        )
+    fig_sector.update_layout(
+        height=450,
+        legend=dict(orientation="h", yanchor="bottom", y=-0.3),
+        margin=dict(l=10, r=10, t=20, b=10),
+        hovermode="x unified",
+    )
+    st.plotly_chart(fig_sector, use_container_width=True)
+else:
+    st.info("Karşılaştırmak için en az bir sektör seçin.")
+
+st.markdown(f"**{JOLTS_METRIC_OPTIONS[selected_metric]} — Sektörler Yan Yana (Aylık Değişim Tablosu)**")
+sector_named = {meta["jolts_industry"]: sector_data[sid] for sid, meta in sector_series.items()}
+sector_wide = report_utils.build_wide_report_table(sector_named, value_type="change")
+if sector_wide.empty:
+    st.info("Bu gösterge için veri yok.")
+else:
+    st.dataframe(
+        sector_wide.style.format("{:+,.1f}", subset=sector_wide.columns[1:], na_rep="—"),
+        use_container_width=True,
+        height=400,
+    )
+    st.download_button(
+        "CSV olarak indir",
+        data=sector_wide.to_csv(index=False).encode("utf-8"),
+        file_name=f"jolts_{selected_metric.lower()}_sektorel.csv",
+        mime="text/csv",
+        key="download_jolts_sector_wide",
+    )
 
 st.divider()
 
