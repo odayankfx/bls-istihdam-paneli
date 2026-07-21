@@ -5,7 +5,7 @@ Her giriş şu bilgileri taşır:
     series_id   : Kaynağın kendi seri kodu (BLS için BLS kodu, FRED için FRED kodu)
     name        : Panelde gösterilecek okunabilir isim
     category    : "Headline" | "Industry" | "Demographic" | "ADP" |
-                  "ADP - İşletme Büyüklüğü" | "JOLTS" | "NSA (Ham Veri)"
+                  "ADP - İşletme Büyüklüğü" | "JOLTS" | "JOLTS - Sektörel" | "NSA (Ham Veri)"
     units       : "percent" | "thousands" | "index" gibi birim bilgisi
     source      : "bls" (varsayılan, belirtilmezse) veya "fred" — verinin hangi
                   API'den çekileceğini belirler. BLS serileri src/bls_client.py,
@@ -275,7 +275,54 @@ SERIES_CATALOG = {
         "units": "thousands",
     },
 
-    # ---------------- NSA (Ham / Mevsimsel Düzeltilmemiş Veri) ----------------
+}
+
+# ---------------- JOLTS - Sektörel Kırılım ----------------
+# JOLTS seri ID yapısı: "JTS" + [NAICS bazlı sektör kodu] + [2 harfli veri
+# elemanı: JO/HI/QU/LD/OS/TS] + "L" (Level). Kodlar BLS/FRED üzerinden
+# doğrulanmıştır (bkz. https://fredaccount.stlouisfed.org/public/datalist/6361).
+# Bu döngü, her sektör x her veri elemanı için otomatik olarak bir seri girişi
+# üretir (15 sektör x 6 veri elemanı = 90 seri). "jolts_metric" ve
+# "jolts_industry" alanları, panelde gruplama/filtreleme için kullanılır.
+JOLTS_INDUSTRIES = {
+    "1000": "Toplam Özel Sektör",
+    "2300": "İnşaat",
+    "3000": "İmalat Sanayi (Toplam)",
+    "3200": "Dayanıklı Mal İmalatı",
+    "3400": "Dayanıksız Mal İmalatı",
+    "4000": "Ticaret, Ulaştırma ve Kamu Hizmetleri",
+    "4400": "Perakende Ticaret",
+    "6000": "Özel Eğitim ve Sağlık Hizmetleri",
+    "6200": "Sağlık Hizmetleri ve Sosyal Yardım",
+    "540099": "Profesyonel ve İş Hizmetleri",
+    "7000": "Boş Zaman ve Konaklama",
+    "7100": "Sanat, Eğlence ve Rekreasyon",
+    "7200": "Konaklama ve Yiyecek Hizmetleri",
+    "9000": "Kamu Sektörü (Toplam)",
+    "9200": "Eyalet ve Yerel Yönetim",
+}
+
+JOLTS_ELEMENTS = {
+    "JO": "İş İlanları",
+    "HI": "İşe Alımlar",
+    "QU": "Gönüllü Ayrılmalar",
+    "LD": "İşten Çıkarmalar",
+    "OS": "Diğer Ayrılmalar",
+    "TS": "Toplam Ayrılmalar",
+}
+
+for _industry_code, _industry_name in JOLTS_INDUSTRIES.items():
+    for _elem_code, _elem_name in JOLTS_ELEMENTS.items():
+        _sid = f"JTS{_industry_code}{_elem_code}L"
+        SERIES_CATALOG[_sid] = {
+            "name": f"{_elem_name} - {_industry_name}",
+            "category": "JOLTS - Sektörel",
+            "units": "thousands",
+            "jolts_metric": _elem_code,
+            "jolts_industry": _industry_name,
+        }
+
+SERIES_CATALOG.update({    # ---------------- NSA (Ham / Mevsimsel Düzeltilmemiş Veri) ----------------
     # Bu seriler ayrı kart olarak öne çıkmaz; "Mevsimsellik Karşılaştırması"
     # bölümünde yukarıdaki SA (mevsimsel düzeltmeli) serilerin karşılığı
     # olarak kullanılır (nsa_pair alanı üzerinden eşlenir).
@@ -381,7 +428,7 @@ SERIES_CATALOG = {
         "units": "thousands",
         "source": "fred",
     },
-}
+})
 
 
 def get_series_ids(source: str = None):
@@ -406,7 +453,7 @@ def get_categories():
     """Ana panelde (Genel Bakış) gösterilecek kategoriler. JOLTS ve NSA ham veri
     kategorileri hariç tutulur — JOLTS kendi ayrı sayfasında, NSA ise sadece
     'Mevsimsellik Karşılaştırması' bölümünde arka planda kullanılır."""
-    excluded = {"NSA (Ham Veri)", "JOLTS"}
+    excluded = {"NSA (Ham Veri)", "JOLTS", "JOLTS - Sektörel"}
     return sorted(
         {
             meta["category"]
