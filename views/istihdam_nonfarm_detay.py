@@ -78,7 +78,10 @@ col3.metric(
 fig_level = px.line(
     level_df, x="date", y="value", labels={"date": "Tarih", "value": "Bin Kişi"}
 )
-fig_level.update_layout(height=350, margin=dict(l=10, r=10, t=20, b=10))
+fig_level.update_layout(
+    title="Toplam Tarım Dışı İstihdam Seviyesi",
+    height=350, margin=dict(l=10, r=10, t=50, b=10),
+)
 st.plotly_chart(fig_level, use_container_width=True)
 
 st.divider()
@@ -99,8 +102,9 @@ fig_bar.add_trace(
     )
 )
 fig_bar.update_layout(
+    title="Tarım Dışı İstihdam — Aylık Net Değişim",
     height=350,
-    margin=dict(l=10, r=10, t=20, b=10),
+    margin=dict(l=10, r=10, t=50, b=10),
     yaxis_title="Bin Kişi",
     xaxis_title="Ay",
 )
@@ -180,8 +184,9 @@ if not report_table.empty:
                     )
                 )
                 fig_breakdown.update_layout(
+                    title=f"{selected_date.strftime('%B %Y')} — Toplam vs Sektörler",
                     height=max(300, 40 * len(bar_data)),
-                    margin=dict(l=10, r=10, t=10, b=10),
+                    margin=dict(l=10, r=10, t=50, b=10),
                     xaxis_title="Aylık Değişim (Bin Kişi)",
                 )
                 st.plotly_chart(fig_breakdown, use_container_width=True)
@@ -189,12 +194,18 @@ if not report_table.empty:
             # ---- 2) Sektörlerin yıllık % değişimi (çizgi) ----
             st.markdown("**2) Sektörlerin Yıllık % Değişimi (Zaman İçinde)**")
             yoy_lines = report_utils.build_pct_change_lines(industry_data, pct_type="yoy")
-            report_utils.render_pct_change_chart(yoy_lines, key_prefix="nonfarm_yoy", vline_date=selected_date)
+            report_utils.render_pct_change_chart(
+                yoy_lines, key_prefix="nonfarm_yoy", vline_date=selected_date,
+                title="Sektörlerin Yıllık % Değişimi",
+            )
 
             # ---- 3) Sektörlerin aylık % değişimi (çizgi) ----
             st.markdown("**3) Sektörlerin Aylık % Değişimi (Zaman İçinde)**")
             mom_lines = report_utils.build_pct_change_lines(industry_data, pct_type="mom")
-            report_utils.render_pct_change_chart(mom_lines, key_prefix="nonfarm_mom", vline_date=selected_date)
+            report_utils.render_pct_change_chart(
+                mom_lines, key_prefix="nonfarm_mom", vline_date=selected_date,
+                title="Sektörlerin Aylık % Değişimi",
+            )
     else:
         st.caption("👆 Sektörel kırılımı görmek için tablodan bir satır (tarih) seçin.")
 
@@ -245,8 +256,9 @@ else:
         )
         fig_net.add_hline(y=0, line_width=1, line_color="gray")
         fig_net.update_layout(
+            title="Net Revizyon (Güncel − İlk Açıklanan)",
             height=300,
-            margin=dict(l=10, r=10, t=20, b=10),
+            margin=dict(l=10, r=10, t=50, b=10),
             yaxis_title="Bin Kişi (Revizyon)",
             xaxis_title="Ay",
         )
@@ -262,9 +274,10 @@ else:
             go.Bar(x=rev_df["ref_date"], y=rev_df["son_revize"], name="Güncel (Son Revize)")
         )
         fig_rev.update_layout(
+            title="Tarım Dışı İstihdam — İlk Açıklanan vs Güncel",
             barmode="group",
             height=400,
-            margin=dict(l=10, r=10, t=20, b=10),
+            margin=dict(l=10, r=10, t=50, b=10),
             yaxis_title="Bin Kişi",
             legend=dict(orientation="h", yanchor="bottom", y=-0.3),
         )
@@ -321,7 +334,10 @@ if not cum_df.empty:
         cum_df, x="date", y="kumulatif_artis",
         labels={"date": "Tarih", "kumulatif_artis": "Kümülatif Artış (Bin Kişi)"},
     )
-    fig_cum.update_layout(height=350, margin=dict(l=10, r=10, t=20, b=10))
+    fig_cum.update_layout(
+        title="Kümülatif İstihdam Artışı",
+        height=350, margin=dict(l=10, r=10, t=50, b=10),
+    )
     st.plotly_chart(fig_cum, use_container_width=True)
 
     st.metric(
@@ -367,8 +383,9 @@ if selected_years:
             )
         )
     fig_years.update_layout(
+        title="Yıllar Arası Kümülatif İstihdam Artışı Karşılaştırması",
         height=450,
-        margin=dict(l=10, r=10, t=20, b=10),
+        margin=dict(l=10, r=10, t=50, b=10),
         xaxis=dict(
             title="Ay",
             tickmode="array",
