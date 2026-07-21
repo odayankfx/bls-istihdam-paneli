@@ -122,8 +122,9 @@ if hires_df is not None and total_sep_df is not None and not hires_df.empty and 
     )
     fig_net.add_hline(y=0, line_width=1, line_color="gray")
     fig_net.update_layout(
+        title="Net İşe Alım (İşe Alımlar − Toplam Ayrılmalar)",
         height=350,
-        margin=dict(l=10, r=10, t=20, b=10),
+        margin=dict(l=10, r=10, t=50, b=10),
         yaxis_title="Bin Kişi (Net)",
         xaxis_title="Ay",
     )
@@ -150,18 +151,24 @@ selected_series = st.multiselect(
 )
 
 if selected_series:
+    selected_dfs = [card_data.get(sid) for sid in selected_series]
+    ts_start, ts_end = report_utils.date_range_slider(selected_dfs, key="jolts_ts_daterange")
+
     fig = go.Figure()
     for sid in selected_series:
         df = card_data.get(sid)
         if df is None or df.empty:
             continue
+        mask = (df["date"].dt.date >= ts_start) & (df["date"].dt.date <= ts_end)
+        df_f = df[mask]
         fig.add_trace(
-            go.Scatter(x=df["date"], y=df["value"], mode="lines", name=jolts_series[sid]["name"])
+            go.Scatter(x=df_f["date"], y=df_f["value"], mode="lines", name=jolts_series[sid]["name"])
         )
     fig.update_layout(
+        title="JOLTS — Zaman Serisi Karşılaştırması",
         height=450,
         legend=dict(orientation="h", yanchor="bottom", y=-0.3),
-        margin=dict(l=10, r=10, t=20, b=10),
+        margin=dict(l=10, r=10, t=50, b=10),
         hovermode="x unified",
     )
     st.plotly_chart(fig, use_container_width=True)
@@ -250,19 +257,26 @@ else:
                     )
                 )
                 fig_breakdown.update_layout(
+                    title=f"{selected_date.strftime('%B %Y')} — Toplam Ayrılmalar Kırılımı",
                     height=max(250, 40 * len(bar_data)),
-                    margin=dict(l=10, r=10, t=10, b=10),
+                    margin=dict(l=10, r=10, t=50, b=10),
                     xaxis_title="Aylık Değişim (Bin Kişi)",
                 )
                 st.plotly_chart(fig_breakdown, use_container_width=True)
 
             st.markdown("**2) Bileşenlerin Yıllık % Değişimi (Zaman İçinde)**")
             yoy_lines = report_utils.build_pct_change_lines(breakdown_data, pct_type="yoy")
-            report_utils.render_pct_change_chart(yoy_lines, key_prefix="jolts_yoy", vline_date=selected_date)
+            report_utils.render_pct_change_chart(
+                yoy_lines, key_prefix="jolts_yoy", vline_date=selected_date,
+                title="Ayrılma Bileşenlerinin Yıllık % Değişimi",
+            )
 
             st.markdown("**3) Bileşenlerin Aylık % Değişimi (Zaman İçinde)**")
             mom_lines = report_utils.build_pct_change_lines(breakdown_data, pct_type="mom")
-            report_utils.render_pct_change_chart(mom_lines, key_prefix="jolts_mom", vline_date=selected_date)
+            report_utils.render_pct_change_chart(
+                mom_lines, key_prefix="jolts_mom", vline_date=selected_date,
+                title="Ayrılma Bileşenlerinin Aylık % Değişimi",
+            )
     elif selected_rows and single_sid != TOTAL_SEPARATIONS_ID:
         st.caption(
             "ℹ️ Kırılım detayı sadece 'Toplam Ayrılmalar' serisi için tanımlı "
@@ -335,18 +349,24 @@ sector_selected = st.multiselect(
 )
 
 if sector_selected:
+    selected_sector_dfs = [sector_data.get(sid) for sid in sector_selected]
+    sec_start, sec_end = report_utils.date_range_slider(selected_sector_dfs, key=f"jolts_sector_ts_daterange_{selected_metric}")
+
     fig_sector = go.Figure()
     for sid in sector_selected:
         df = sector_data.get(sid)
         if df is None or df.empty:
             continue
+        mask = (df["date"].dt.date >= sec_start) & (df["date"].dt.date <= sec_end)
+        df_f = df[mask]
         fig_sector.add_trace(
-            go.Scatter(x=df["date"], y=df["value"], mode="lines", name=sector_series[sid]["jolts_industry"])
+            go.Scatter(x=df_f["date"], y=df_f["value"], mode="lines", name=sector_series[sid]["jolts_industry"])
         )
     fig_sector.update_layout(
+        title=f"{JOLTS_METRIC_OPTIONS[selected_metric]} — Sektörlere Göre Zaman Serisi",
         height=450,
         legend=dict(orientation="h", yanchor="bottom", y=-0.3),
-        margin=dict(l=10, r=10, t=20, b=10),
+        margin=dict(l=10, r=10, t=50, b=10),
         hovermode="x unified",
     )
     st.plotly_chart(fig_sector, use_container_width=True)
@@ -379,8 +399,9 @@ if bar_rows:
         )
     )
     fig_sector_bar.update_layout(
+        title=f"{JOLTS_METRIC_OPTIONS[selected_metric]} — Son Ay Değişimi (Sektörler)",
         height=max(400, 28 * len(bar_df)),
-        margin=dict(l=10, r=10, t=10, b=10),
+        margin=dict(l=10, r=10, t=50, b=10),
         xaxis_title="Aylık Değişim (Bin Kişi)",
     )
     st.plotly_chart(fig_sector_bar, use_container_width=True)
@@ -394,7 +415,10 @@ st.caption(
 )
 sector_named = {meta["jolts_industry"]: sector_data[sid] for sid, meta in sector_series.items()}
 mom_lines = report_utils.build_pct_change_lines(sector_named, pct_type="mom")
-report_utils.render_pct_change_chart(mom_lines, key_prefix=f"jolts_sector_mom_{selected_metric}")
+report_utils.render_pct_change_chart(
+    mom_lines, key_prefix=f"jolts_sector_mom_{selected_metric}",
+    title=f"{JOLTS_METRIC_OPTIONS[selected_metric]} — Sektörlerin Aylık % Değişimi",
+)
 
 st.markdown(f"**{JOLTS_METRIC_OPTIONS[selected_metric]} — Sektörlerin Yıllık % Değişimi (Sezonsallıktan Arındırılmış Trend)**")
 st.caption(
@@ -402,7 +426,10 @@ st.caption(
     "olarak iptal eder — bu grafik sektörün altında yatan gerçek büyüme/daralma trendini gösterir."
 )
 yoy_lines = report_utils.build_pct_change_lines(sector_named, pct_type="yoy")
-report_utils.render_pct_change_chart(yoy_lines, key_prefix=f"jolts_sector_yoy_{selected_metric}")
+report_utils.render_pct_change_chart(
+    yoy_lines, key_prefix=f"jolts_sector_yoy_{selected_metric}",
+    title=f"{JOLTS_METRIC_OPTIONS[selected_metric]} — Sektörlerin Yıllık % Değişimi",
+)
 
 st.markdown(f"**{JOLTS_METRIC_OPTIONS[selected_metric]} — Sektörler Yan Yana (Aylık Değişim Tablosu)**")
 sector_wide = report_utils.build_wide_report_table(sector_named, value_type="change")
