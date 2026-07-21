@@ -403,12 +403,14 @@ def get_by_category(category: str):
 
 
 def get_categories():
-    """Ana panelde gösterilecek kategoriler (NSA ham veri kategorisi hariç -
-    o kategori sadece 'Mevsimsellik Karşılaştırması' bölümünde arka planda kullanılır)."""
+    """Ana panelde (Genel Bakış) gösterilecek kategoriler. JOLTS ve NSA ham veri
+    kategorileri hariç tutulur — JOLTS kendi ayrı sayfasında, NSA ise sadece
+    'Mevsimsellik Karşılaştırması' bölümünde arka planda kullanılır."""
+    excluded = {"NSA (Ham Veri)", "JOLTS"}
     return sorted(
         {
             meta["category"]
             for meta in SERIES_CATALOG.values()
-            if meta["category"] != "NSA (Ham Veri)"
+            if meta["category"] not in excluded
         }
     )
