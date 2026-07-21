@@ -278,28 +278,40 @@ SERIES_CATALOG = {
 }
 
 # ---------------- JOLTS - Sektörel Kırılım ----------------
-# JOLTS seri ID yapısı: "JTS" + [NAICS bazlı sektör kodu] + [2 harfli veri
-# elemanı: JO/HI/QU/LD/OS/TS] + "L" (Level). Kodlar BLS/FRED üzerinden
-# doğrulanmıştır (bkz. https://fredaccount.stlouisfed.org/public/datalist/6361).
-# Bu döngü, her sektör x her veri elemanı için otomatik olarak bir seri girişi
-# üretir (15 sektör x 6 veri elemanı = 90 seri). "jolts_metric" ve
-# "jolts_industry" alanları, panelde gruplama/filtreleme için kullanılır.
+# JOLTS seri ID yapısı 21 karakterdir (BLS'in resmi jt.txt tanım dosyasından
+# doğrulanmıştır: https://download.bls.gov/pub/time.series/jt/jt.txt):
+#   "JT" + seasonal(1: S/U) + industry_code(6) + state_code(2,00) +
+#   area_code(5,00000) + sizeclass_code(2,00) + dataelement_code(2) + ratelevel(1: L/R)
+# Sektör kodları BLS'in resmi jt.industry eşleme dosyasından alınmıştır
+# (https://download.bls.gov/pub/time.series/jt/jt.industry).
 JOLTS_INDUSTRIES = {
-    "1000": "Toplam Özel Sektör",
-    "2300": "İnşaat",
-    "3000": "İmalat Sanayi (Toplam)",
-    "3200": "Dayanıklı Mal İmalatı",
-    "3400": "Dayanıksız Mal İmalatı",
-    "4000": "Ticaret, Ulaştırma ve Kamu Hizmetleri",
-    "4400": "Perakende Ticaret",
-    "6000": "Özel Eğitim ve Sağlık Hizmetleri",
-    "6200": "Sağlık Hizmetleri ve Sosyal Yardım",
+    "100000": "Toplam Özel Sektör",
+    "110099": "Madencilik ve Ormancılık",
+    "230000": "İnşaat",
+    "300000": "İmalat Sanayi (Toplam)",
+    "320000": "Dayanıklı Mal İmalatı",
+    "340000": "Dayanıksız Mal İmalatı",
+    "400000": "Ticaret, Ulaştırma ve Kamu Hizmetleri (Toplam)",
+    "420000": "Toptan Ticaret",
+    "440000": "Perakende Ticaret",
+    "480099": "Ulaştırma, Depolama ve Kamu Hizmetleri",
+    "510000": "Bilgi Sektörü",
+    "510099": "Finansal Faaliyetler (Toplam)",
+    "520000": "Finans ve Sigortacılık",
+    "530000": "Gayrimenkul ve Kiralama",
     "540099": "Profesyonel ve İş Hizmetleri",
-    "7000": "Boş Zaman ve Konaklama",
-    "7100": "Sanat, Eğlence ve Rekreasyon",
-    "7200": "Konaklama ve Yiyecek Hizmetleri",
-    "9000": "Kamu Sektörü (Toplam)",
-    "9200": "Eyalet ve Yerel Yönetim",
+    "600000": "Özel Eğitim ve Sağlık Hizmetleri (Toplam)",
+    "610000": "Özel Eğitim Hizmetleri",
+    "620000": "Sağlık Hizmetleri ve Sosyal Yardım",
+    "700000": "Boş Zaman ve Konaklama (Toplam)",
+    "710000": "Sanat, Eğlence ve Rekreasyon",
+    "720000": "Konaklama ve Yiyecek Hizmetleri",
+    "810000": "Diğer Hizmetler",
+    "900000": "Kamu Sektörü (Toplam)",
+    "910000": "Federal Hükümet",
+    "920000": "Eyalet ve Yerel Yönetim (Toplam)",
+    "923000": "Eyalet ve Yerel Yönetim - Eğitim",
+    "929000": "Eyalet ve Yerel Yönetim - Eğitim Hariç",
 }
 
 JOLTS_ELEMENTS = {
@@ -313,7 +325,8 @@ JOLTS_ELEMENTS = {
 
 for _industry_code, _industry_name in JOLTS_INDUSTRIES.items():
     for _elem_code, _elem_name in JOLTS_ELEMENTS.items():
-        _sid = f"JTS{_industry_code}{_elem_code}L"
+        # Tam 21 karakterlik seri ID: JT + S + industry(6) + 00 + 00000 + 00 + elem(2) + L
+        _sid = "JT" + "S" + _industry_code + "00" + "00000" + "00" + _elem_code + "L"
         SERIES_CATALOG[_sid] = {
             "name": f"{_elem_name} - {_industry_name}",
             "category": "JOLTS - Sektörel",
