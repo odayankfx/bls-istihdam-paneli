@@ -171,7 +171,7 @@ def build_pct_change_lines(breakdown_dict: dict, pct_type: str = "yoy"):
     return pd.concat(frames, ignore_index=True)
 
 
-def render_pct_change_chart(df_long: pd.DataFrame, key_prefix: str, vline_date=None):
+def render_pct_change_chart(df_long: pd.DataFrame, key_prefix: str, vline_date=None, title: str = None):
     """
     Bir % değişim çizgi grafiğini, üstünde tarih aralığı seçici ve y ekseni
     (ızgara aralığı) kontrolleriyle birlikte render eder.
@@ -186,6 +186,7 @@ def render_pct_change_chart(df_long: pd.DataFrame, key_prefix: str, vline_date=N
                 (build_pct_change_lines çıktısı)
     key_prefix: Streamlit widget key çakışmalarını önlemek için benzersiz önek
     vline_date: (opsiyonel) grafikte dikey referans çizgisi çizilecek tarih
+    title     : (opsiyonel) grafiğin başlığı — PNG olarak indirildiğinde de görünür
     """
     import streamlit as st
     import plotly.express as px
@@ -266,9 +267,39 @@ def render_pct_change_chart(df_long: pd.DataFrame, key_prefix: str, vline_date=N
             fig.add_vline(x=vline_ts, line_dash="dot", line_color="gray")
     fig.update_yaxes(range=y_range)
     fig.update_layout(
+        title=title,
         height=420,
-        margin=dict(l=10, r=10, t=10, b=10),
+        margin=dict(l=10, r=10, t=50 if title else 10, b=10),
         legend=dict(orientation="h", yanchor="bottom", y=-0.4),
         hovermode="x unified",
     )
     st.plotly_chart(fig, use_container_width=True)
+
+
+def date_range_slider(df_or_list, key: str, label: str = "Tarih aralığı"):
+    """
+    Birden çok grafikte tekrar eden 'tarih aralığı seçici' kodunu ortaklaştırır.
+    df_or_list: tek bir DataFrame (date kolonu olan) ya da DataFrame listesi.
+    Dönüş: (start_date, end_date) - date objeleri (pandas Timestamp değil).
+    """
+    import streamlit as st
+
+    if isinstance(df_or_list, pd.DataFrame):
+        frames = [df_or_list]
+    else:
+        frames = [d for d in df_or_list if d is not None and not d.empty]
+
+    if not frames:
+        return None, None
+
+    min_date = min(d["date"].min() for d in frames).date()
+    max_date = max(d["date"].max() for d in frames).date()
+
+    return st.slider(
+        label,
+        min_value=min_date,
+        max_value=max_date,
+        value=(min_date, max_date),
+        format="MM/YYYY",
+        key=key,
+    )
