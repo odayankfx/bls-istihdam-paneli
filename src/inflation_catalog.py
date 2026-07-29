@@ -8,7 +8,7 @@ sayfalarındaki kategori seçicisini etkilemez.
 Her giriş şu bilgileri taşır:
     series_id : BLS CPI seri kodu
     name      : Panelde gösterilecek okunabilir isim
-    category  : "Headline" | "Categories"
+    category  : "Headline" | "Core" | "Other Headline Indicators" | "Categories"
     units     : "index" (1982-84=100 taban yıllı endeks değeri)
     nsa_pair  : mevsimsel düzeltilmemiş (NSA) karşılığının seri ID'si
 
@@ -25,40 +25,44 @@ https://download.bls.gov/pub/time.series/cu/cu.item
 """
 
 SERIES_CATALOG = {
-    # ---------------- Başlık göstergeleri (Headline) ----------------
+    # ---------------- Başlık göstergesi (Headline) — sadece "Tüm Kalemler" ----------------
     "CUSR0000SA0": {
         "name": "TÜFE (CPI-U) — Tüm Kalemler",
         "category": "Headline",
         "units": "index",
         "nsa_pair": "CUUR0000SA0",
     },
+
+    # ---------------- Çekirdek Enflasyon (Core) — ayrı kategori ----------------
     "CUSR0000SA0L1E": {
         "name": "Çekirdek TÜFE (Gıda ve Enerji Hariç)",
-        "category": "Headline",
+        "category": "Core",
         "units": "index",
         "nsa_pair": "CUUR0000SA0L1E",
     },
+
+    # ---------------- Diğer genel göstergeler ----------------
     "CUSR0000SA0E": {
         "name": "Enerji",
-        "category": "Headline",
+        "category": "Other Headline Indicators",
         "units": "index",
         "nsa_pair": "CUUR0000SA0E",
     },
     "CUSR0000SAF1": {
         "name": "Gıda",
-        "category": "Headline",
+        "category": "Other Headline Indicators",
         "units": "index",
         "nsa_pair": "CUUR0000SAF1",
     },
     "CUSR0000SAS": {
         "name": "Hizmetler (Services)",
-        "category": "Headline",
+        "category": "Other Headline Indicators",
         "units": "index",
         "nsa_pair": "CUUR0000SAS",
     },
     "CUSR0000SAC": {
         "name": "Mallar (Commodities)",
-        "category": "Headline",
+        "category": "Other Headline Indicators",
         "units": "index",
         "nsa_pair": "CUUR0000SAC",
     },
