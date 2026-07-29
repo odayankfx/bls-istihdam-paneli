@@ -15,9 +15,9 @@ BLS'in Employment Situation raporu her ayın ilk cuma günü, ADP raporu ise
 genelde bir gün önce, CPI raporu ise ayın ortasında yayınlanır; bu script'i
 haftada bir (örn. cron ile) çalıştırmak güncel kalmak için yeterlidir.
 
-NOT: Hem İstihdam (src/series_catalog.py) hem Enflasyon (src/inflation_catalog.py)
-katalogları burada birleştirilip TEK bir BLS/FRED çekimi ile işlenir — bu,
-her iki bölümün de verisini güncel tutar.
+NOT: Hem İstihdam (src/series_catalog.py) hem Enflasyon (src/inflation_catalog.py,
+src/ppi_catalog.py) katalogları burada birleştirilip TEK bir BLS/FRED çekimi
+ile işlenir — bu, tüm bölümlerin verisini güncel tutar.
 """
 
 import argparse
@@ -31,12 +31,13 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.series_catalog import SERIES_CATALOG as EMPLOYMENT_CATALOG
 from src.inflation_catalog import SERIES_CATALOG as INFLATION_CATALOG
+from src.ppi_catalog import SERIES_CATALOG as PPI_CATALOG
 from src.bls_client import fetch_series
 from src.fred_client import fetch_vintage_observations, fetch_level_series, FRED_SERIES_MAP
 from src import database
 
-# İstihdam ve Enflasyon kataloglarını birleştirip tek bir yerden yönetiyoruz.
-COMBINED_CATALOG = {**EMPLOYMENT_CATALOG, **INFLATION_CATALOG}
+# İstihdam, Enflasyon (CPI) ve PPI kataloglarını birleştirip tek bir yerden yönetiyoruz.
+COMBINED_CATALOG = {**EMPLOYMENT_CATALOG, **INFLATION_CATALOG, **PPI_CATALOG}
 
 
 def get_combined_series_ids(source: str = None):
