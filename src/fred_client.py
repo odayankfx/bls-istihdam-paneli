@@ -190,15 +190,18 @@ def fetch_vintage_observations(fred_series_id: str, api_key: str, start_date: st
     return initial_changes + current_changes
 
 
-def fetch_level_series(fred_series_id: str, api_key: str, start_date: str = "2010-01-01"):
+def fetch_level_series(fred_series_id: str, api_key: str, start_date: str = "2010-01-01", scale: float = 1000.0):
     """
-    FRED'den doğrudan bir seviye serisini (örn. ADP istihdam serileri) çekip
-    bizim BLS ile aynı ortak formatımıza (year, period, periodName, value,
-    footnotes) dönüştürür — böylece update_data.py ve database.py, verinin
-    BLS'ten mi FRED'ten mi geldiğini bilmeden aynı şekilde işleyebilir.
+    FRED'den doğrudan bir seviye serisini (örn. ADP istihdam serileri, PCE
+    endeksleri) çekip bizim BLS ile aynı ortak formatımıza (year, period,
+    periodName, value, footnotes) dönüştürür — böylece update_data.py ve
+    database.py, verinin BLS'ten mi FRED'ten mi geldiğini bilmeden aynı
+    şekilde işleyebilir.
 
-    Değer, BLS ile tutarlı olması için "Persons" yerine "Bin Kişi" (thousands)
-    birimine çevrilir (1000'e bölünür).
+    scale: FRED'in ham değeri bu sayıya bölünür. ADP gibi "Persons" (kişi
+    sayısı) serilerinde BLS ile tutarlı olması için 1000'e bölünür (varsayılan).
+    PCE gibi zaten bir ENDEKS olan seriler için scale=1 verilmelidir (bölme
+    yapılmasın diye) — aksi halde endeks değeri yanlışlıkla küçültülür.
     """
     observations = _fetch_observations(
         fred_series_id, api_key, output_type=1, units="lin", start_date=start_date
@@ -217,7 +220,7 @@ def fetch_level_series(fred_series_id: str, api_key: str, start_date: str = "201
                 "year": y,
                 "period": f"M{m:02d}",
                 "periodName": month_names[m - 1],
-                "value": str(obs["value"] / 1000.0),
+                "value": str(obs["value"] / scale),
                 "footnotes": "",
             }
         )
