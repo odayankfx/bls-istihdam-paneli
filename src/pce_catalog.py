@@ -25,6 +25,13 @@ NOT: PCE endeksleri sadece mevsimsel düzeltmeli (SA) olarak aylık yayınlanır
 CPI/PPI'nin aksine ayrı bir NSA (ham) versiyonu yoktur — bu yüzden bu
 katalogda nsa_pair alanı bulunmaz ve panelde "Mevsimsellik Karşılaştırması"
 bölümü bu kategori için otomatik olarak gizlenir.
+
+ÖNEMLİ KISIT: BEA, CPI'daki gibi Konut/Sağlık/Ulaştırma/Eğlence/Finansal
+Hizmetler gibi kategorileri AYRI AYRI AYLIK olarak yayınlamaz — bu detaylar
+sadece BEA'nın çeyreklik/yıllık NIPA tablolarında (Table 2.4.4) mevcuttur.
+Aylık "Personal Income and Outlays" raporunda sadece bu dosyadaki kaba
+kırılım (Mal/Hizmet/Dayanıklı/Dayanıksız/Gıda/Enerji) ve 2023'te eklenen
+"hariç" ölçütleri (IA001176M, IA001260M) bulunur.
 """
 
 SERIES_CATALOG = {
@@ -40,6 +47,20 @@ SERIES_CATALOG = {
     # ---------------- Çekirdek Enflasyon (Core) — Fed'in asıl takip ettiği ----------------
     "PCEPILFE": {
         "name": "Çekirdek PCE (Gıda ve Enerji Hariç) — Fed'in Hedef Ölçütü",
+        "category": "Core",
+        "units": "index",
+        "source": "fred",
+        "fred_scale": 1.0,
+    },
+    "IA001176M": {
+        "name": "Süper Çekirdek PCE (Gıda, Enerji ve Konut Hariç)",
+        "category": "Core",
+        "units": "index",
+        "source": "fred",
+        "fred_scale": 1.0,
+    },
+    "IA001260M": {
+        "name": "PCE Hizmetler (Enerji ve Konut Hariç)",
         "category": "Core",
         "units": "index",
         "source": "fred",
