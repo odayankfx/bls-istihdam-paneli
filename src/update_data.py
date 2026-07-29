@@ -16,8 +16,8 @@ genelde bir gün önce, CPI raporu ise ayın ortasında yayınlanır; bu script'
 haftada bir (örn. cron ile) çalıştırmak güncel kalmak için yeterlidir.
 
 NOT: Hem İstihdam (src/series_catalog.py) hem Enflasyon (src/inflation_catalog.py,
-src/ppi_catalog.py) katalogları burada birleştirilip TEK bir BLS/FRED çekimi
-ile işlenir — bu, tüm bölümlerin verisini güncel tutar.
+src/ppi_catalog.py, src/pce_catalog.py) katalogları burada birleştirilip TEK
+bir BLS/FRED çekimi ile işlenir — bu, tüm bölümlerin verisini güncel tutar.
 """
 
 import argparse
@@ -32,12 +32,13 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.series_catalog import SERIES_CATALOG as EMPLOYMENT_CATALOG
 from src.inflation_catalog import SERIES_CATALOG as INFLATION_CATALOG
 from src.ppi_catalog import SERIES_CATALOG as PPI_CATALOG
+from src.pce_catalog import SERIES_CATALOG as PCE_CATALOG
 from src.bls_client import fetch_series
 from src.fred_client import fetch_vintage_observations, fetch_level_series, FRED_SERIES_MAP
 from src import database
 
-# İstihdam, Enflasyon (CPI) ve PPI kataloglarını birleştirip tek bir yerden yönetiyoruz.
-COMBINED_CATALOG = {**EMPLOYMENT_CATALOG, **INFLATION_CATALOG, **PPI_CATALOG}
+# İstihdam, CPI, PPI ve PCE kataloglarını birleştirip tek bir yerden yönetiyoruz.
+COMBINED_CATALOG = {**EMPLOYMENT_CATALOG, **INFLATION_CATALOG, **PPI_CATALOG, **PCE_CATALOG}
 
 
 def get_combined_series_ids(source: str = None):
@@ -109,7 +110,7 @@ def main():
         else:
             print(f"  ! {series_id} ({meta['name']}): veri dönmedi")
 
-    # ---------------- FRED kaynaklı seriler (örn. ADP) ----------------
+    # ---------------- FRED kaynaklı seriler (örn. ADP, PCE) ----------------
     fred_series_ids = get_combined_series_ids(source="fred")
     if fred_series_ids:
         if not fred_api_key:
@@ -122,8 +123,9 @@ def main():
                     series_id, meta["name"], meta["category"], meta["units"]
                 )
                 try:
+                    fred_scale = meta.get("fred_scale", 1000.0)
                     points = fetch_level_series(
-                        series_id, fred_api_key, start_date=f"{start_year}-01-01"
+                        series_id, fred_api_key, start_date=f"{start_year}-01-01", scale=fred_scale
                     )
                     if points:
                         database.upsert_series_points(series_id, points)
