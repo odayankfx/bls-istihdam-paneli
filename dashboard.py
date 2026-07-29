@@ -28,13 +28,13 @@ istihdam_jolts = st.Page("views/istihdam_jolts.py", title="JOLTS", icon="🧩")
 
 enflasyon_genel = st.Page("views/enflasyon_genel.py", title="Genel Bakış (CPI)", icon="💰")
 enflasyon_ppi = st.Page("views/enflasyon_ppi.py", title="Genel Bakış (ÜFE/PPI)", icon="🏭")
+enflasyon_pce = st.Page("views/enflasyon_pce.py", title="Genel Bakış (PCE)", icon="🏦")
 
 pg = st.navigation(
     {
         "": [home_page],
         "💼 ABD İstihdam": [istihdam_genel, istihdam_nonfarm_detay, istihdam_jolts],
-        "💰 Enflasyon": [enflasyon_genel, enflasyon_ppi],
-        # ileride: PCE sayfası da bu listeye eklenecek
+        "💰 Enflasyon": [enflasyon_genel, enflasyon_ppi, enflasyon_pce],
     }
 )
 pg.run()
