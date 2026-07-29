@@ -130,40 +130,61 @@ for i, (sid, meta) in enumerate(series_in_category.items()):
 
 st.divider()
 
-# ---------------------------------------------------------------- yıllık enflasyon bar grafiği
-st.subheader("Güncel Yıllık Enflasyon Oranları (Karşılaştırma)")
-st.caption("Her kalemin son 12 aylık % değişimini (yıllık enflasyon oranını) yan yana gösterir.")
+# ---------------------------------------------------------------- enflasyon bar grafiği (ay seçilebilir)
+st.subheader("Enflasyon Oranları Karşılaştırması (Ay Seçilebilir)")
+st.caption(
+    "Her kalemin seçtiğiniz aydaki % değişimini yan yana gösterir. "
+    "Aşağıdan istediğiniz ayı ve yıllık/aylık görünümü seçebilirsiniz."
+)
 
-bar_rows = []
-for sid, meta in series_in_category.items():
-    df = card_data[sid]
-    _, _, yoy_pct = latest_index_and_changes(df)
-    if yoy_pct is not None:
-        bar_rows.append({"Kalem": meta["name"], "Yıllık % Değişim": yoy_pct})
+bar_metric = st.radio(
+    "Gösterilecek değişim türü",
+    ["Yıllık % Değişim", "Aylık % Değişim"],
+    horizontal=True,
+    key=f"enflasyon_bar_metric_{category}",
+)
+bar_pct_type = "yoy" if bar_metric == "Yıllık % Değişim" else "mom"
 
-if bar_rows:
-    bar_df = pd.DataFrame(bar_rows).sort_values("Yıllık % Değişim")
-    fig_bar = go.Figure()
-    fig_bar.add_trace(
-        go.Bar(
-            x=bar_df["Yıllık % Değişim"],
-            y=bar_df["Kalem"],
-            orientation="h",
-            marker_color=["#d62728" if v >= 0 else "#2ca02c" for v in bar_df["Yıllık % Değişim"]],
-            text=bar_df["Yıllık % Değişim"].map(lambda v: f"{v:+.1f}%"),
-            textposition="outside",
-        )
-    )
-    fig_bar.update_layout(
-        title=f"{category} — Yıllık Enflasyon Oranları",
-        height=max(300, 40 * len(bar_df)),
-        margin=dict(l=10, r=10, t=50, b=10),
-        xaxis_title="Yıllık % Değişim",
-    )
-    st.plotly_chart(fig_bar, use_container_width=True)
-    st.caption("Not: Enflasyonda kırmızı=artış, yeşil=düşüş renklendirmesi kullanılmıştır (istihdam grafiklerinin tersi).")
+named_for_bar = {meta["name"]: card_data[sid] for sid, meta in series_in_category.items()}
+bar_lines_all = report_utils.build_pct_change_lines(named_for_bar, pct_type=bar_pct_type)
+
+if bar_lines_all.empty:
+    st.info("Bu kategori için % değişim hesaplanacak yeterli veri yok.")
 else:
-    st.info("Yıllık % değişim hesaplamak için yeterli veri yok (en az 13 aylık veri gerekiyor).")
+    available_months = sorted(bar_lines_all["date"].dropna().unique())
+    selected_month = st.select_slider(
+        "Ay seçin",
+        options=available_months,
+        value=available_months[-1],
+        format_func=lambda d: pd.Timestamp(d).strftime("%B %Y"),
+        key=f"enflasyon_bar_month_{category}",
+    )
+
+    month_df = bar_lines_all[bar_lines_all["date"] == selected_month].dropna(subset=["Değişim %"])
+
+    if month_df.empty:
+        st.info("Seçilen ay için veri yok (bu kalem için yeterli geçmiş veri birikmemiş olabilir).")
+    else:
+        month_df = month_df.sort_values("Değişim %")
+        fig_bar = go.Figure()
+        fig_bar.add_trace(
+            go.Bar(
+                x=month_df["Değişim %"],
+                y=month_df["Kategori"],
+                orientation="h",
+                marker_color=["#d62728" if v >= 0 else "#2ca02c" for v in month_df["Değişim %"]],
+                text=month_df["Değişim %"].map(lambda v: f"{v:+.1f}%"),
+                textposition="outside",
+            )
+        )
+        fig_bar.update_layout(
+            title=f"{category} — {pd.Timestamp(selected_month).strftime('%B %Y')} {bar_metric}",
+            height=max(300, 40 * len(month_df)),
+            margin=dict(l=10, r=10, t=50, b=10),
+            xaxis_title=bar_metric,
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
+        st.caption("Not: Enflasyonda kırmızı=artış, yeşil=düşüş renklendirmesi kullanılmıştır (istihdam grafiklerinin tersi).")
 
 st.divider()
 
