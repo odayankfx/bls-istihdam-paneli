@@ -14,9 +14,11 @@ st.markdown(
     Sol menüden bir bölüm seçin:
 
     - **💼 ABD İstihdam** — BLS ve ADP istihdam verileri, tarım dışı istihdam
-      detayları, revizyon takibi ve kırılımlar.
+      detayları, JOLTS, revizyon takibi ve kırılımlar.
+    - **💰 Enflasyon** — BLS Tüketici Fiyat Endeksi (CPI-U): başlık göstergeleri,
+      çekirdek enflasyon, ana harcama kategorileri.
 
     Yakında eklenecek:
-    - **💰 Enflasyon** — CPI, PPI, PCE verileri.
+    - PPI, PCE ve Challenger Job Cuts verileri.
     """
 )
