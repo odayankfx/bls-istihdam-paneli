@@ -12,8 +12,12 @@ Ortam değişkenleri (.env dosyasından okunur):
     DB_PATH       : (opsiyonel) SQLite dosya yolu, varsayılan data/employment.db
 
 BLS'in Employment Situation raporu her ayın ilk cuma günü, ADP raporu ise
-genelde bir gün önce yayınlanır; bu script'i haftada bir (örn. cron ile)
-çalıştırmak güncel kalmak için yeterlidir.
+genelde bir gün önce, CPI raporu ise ayın ortasında yayınlanır; bu script'i
+haftada bir (örn. cron ile) çalıştırmak güncel kalmak için yeterlidir.
+
+NOT: Hem İstihdam (src/series_catalog.py) hem Enflasyon (src/inflation_catalog.py)
+katalogları burada birleştirilip TEK bir BLS/FRED çekimi ile işlenir — bu,
+her iki bölümün de verisini güncel tutar.
 """
 
 import argparse
@@ -25,16 +29,29 @@ from dotenv import load_dotenv
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.series_catalog import SERIES_CATALOG, get_series_ids
+from src.series_catalog import SERIES_CATALOG as EMPLOYMENT_CATALOG
+from src.inflation_catalog import SERIES_CATALOG as INFLATION_CATALOG
 from src.bls_client import fetch_series
 from src.fred_client import fetch_vintage_observations, fetch_level_series, FRED_SERIES_MAP
 from src import database
+
+# İstihdam ve Enflasyon kataloglarını birleştirip tek bir yerden yönetiyoruz.
+COMBINED_CATALOG = {**EMPLOYMENT_CATALOG, **INFLATION_CATALOG}
+
+
+def get_combined_series_ids(source: str = None):
+    if source is None:
+        return list(COMBINED_CATALOG.keys())
+    return [
+        sid for sid, meta in COMBINED_CATALOG.items()
+        if meta.get("source", "bls") == source
+    ]
 
 
 def main():
     load_dotenv()
 
-    parser = argparse.ArgumentParser(description="İstihdam verisini güncelle")
+    parser = argparse.ArgumentParser(description="İstihdam ve Enflasyon verisini güncelle")
     parser.add_argument("--years", type=int, default=10, help="Kaç yıl geriye gidilsin")
     parser.add_argument("--start", type=int, default=None, help="Başlangıç yılı (opsiyonel)")
     parser.add_argument("--end", type=int, default=None, help="Bitiş yılı (opsiyonel)")
@@ -66,14 +83,14 @@ def main():
 
     database.init_db()
 
-    # ---------------- BLS kaynaklı seriler ----------------
-    bls_series_ids = get_series_ids(source="bls")
+    # ---------------- BLS kaynaklı seriler (İstihdam + Enflasyon) ----------------
+    bls_series_ids = get_combined_series_ids(source="bls")
     print(f"{len(bls_series_ids)} BLS serisi, {start_year}-{end_year} yılları için çekiliyor...")
 
     results = fetch_series(bls_series_ids, start_year, end_year, api_key=bls_api_key)
 
     for series_id, points in results.items():
-        meta = SERIES_CATALOG[series_id]
+        meta = COMBINED_CATALOG[series_id]
         database.upsert_series_meta(
             series_id, meta["name"], meta["category"], meta["units"]
         )
@@ -92,14 +109,14 @@ def main():
             print(f"  ! {series_id} ({meta['name']}): veri dönmedi")
 
     # ---------------- FRED kaynaklı seriler (örn. ADP) ----------------
-    fred_series_ids = get_series_ids(source="fred")
+    fred_series_ids = get_combined_series_ids(source="fred")
     if fred_series_ids:
         if not fred_api_key:
             print(f"[UYARI] {len(fred_series_ids)} FRED serisi (ADP dahil) FRED_API_KEY olmadığı için atlanıyor.")
         else:
             print(f"{len(fred_series_ids)} FRED serisi çekiliyor...")
             for series_id in fred_series_ids:
-                meta = SERIES_CATALOG[series_id]
+                meta = COMBINED_CATALOG[series_id]
                 database.upsert_series_meta(
                     series_id, meta["name"], meta["category"], meta["units"]
                 )
@@ -125,7 +142,7 @@ def main():
             )
         else:
             for bls_id, fred_id in FRED_SERIES_MAP.items():
-                if bls_id not in SERIES_CATALOG:
+                if bls_id not in COMBINED_CATALOG:
                     continue
                 print(f"FRED/ALFRED'den revizyon geçmişi çekiliyor: {fred_id} ({bls_id})")
                 try:
