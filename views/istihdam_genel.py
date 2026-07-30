@@ -78,6 +78,8 @@ if st.sidebar.button("🔄 Veriyi şimdi güncelle"):
                 child_env["BLS_API_KEY"] = st.secrets["BLS_API_KEY"]
             if "FRED_API_KEY" in st.secrets:
                 child_env["FRED_API_KEY"] = st.secrets["FRED_API_KEY"]
+            if "BEA_API_KEY" in st.secrets:
+                child_env["BEA_API_KEY"] = st.secrets["BEA_API_KEY"]
         except Exception:
             pass  # secrets.toml tanımlı değilse sessizce geç
 
