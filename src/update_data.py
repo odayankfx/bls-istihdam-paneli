@@ -1,5 +1,5 @@
 """
-Veriyi BLS ve FRED API'lerinden çekip yerel SQLite veritabanına yazan script.
+Veriyi BLS, FRED ve BEA API'lerinden çekip yerel SQLite veritabanına yazan script.
 
 Kullanım:
     python -m src.update_data                 # son 10 yılı çeker
@@ -9,6 +9,7 @@ Kullanım:
 Ortam değişkenleri (.env dosyasından okunur):
     BLS_API_KEY   : (opsiyonel ama önerilir) BLS kayıt anahtarı
     FRED_API_KEY  : (ADP verisi ve Tarım Dışı İstihdam revizyonları için GEREKLİ)
+    BEA_API_KEY   : (PCE'nin ayrıntılı alt kategorileri için GEREKLİ)
     DB_PATH       : (opsiyonel) SQLite dosya yolu, varsayılan data/employment.db
 
 BLS'in Employment Situation raporu her ayın ilk cuma günü, ADP raporu ise
@@ -17,7 +18,7 @@ haftada bir (örn. cron ile) çalıştırmak güncel kalmak için yeterlidir.
 
 NOT: Hem İstihdam (src/series_catalog.py) hem Enflasyon (src/inflation_catalog.py,
 src/ppi_catalog.py, src/pce_catalog.py) katalogları burada birleştirilip TEK
-bir BLS/FRED çekimi ile işlenir — bu, tüm bölümlerin verisini güncel tutar.
+bir BLS/FRED/BEA çekimi ile işlenir — bu, tüm bölümlerin verisini güncel tutar.
 """
 
 import argparse
@@ -35,6 +36,7 @@ from src.ppi_catalog import SERIES_CATALOG as PPI_CATALOG
 from src.pce_catalog import SERIES_CATALOG as PCE_CATALOG
 from src.bls_client import fetch_series
 from src.fred_client import fetch_vintage_observations, fetch_level_series, FRED_SERIES_MAP
+from src.bea_client import fetch_underlying_detail_series
 from src import database
 
 # İstihdam, CPI, PPI ve PCE kataloglarını birleştirip tek bir yerden yönetiyoruz.
@@ -83,6 +85,14 @@ def main():
             "https://fred.stlouisfed.org/docs/api/api_key.html"
         )
 
+    bea_api_key = os.environ.get("BEA_API_KEY")
+    if not bea_api_key:
+        print(
+            "[UYARI] BEA_API_KEY bulunamadı. PCE'nin ayrıntılı alt kategorileri "
+            "(Konut, Sağlık, Ulaştırma vb.) atlanacak. Ücretsiz anahtar: "
+            "https://apps.bea.gov/API/signup/index.cfm"
+        )
+
     database.init_db()
 
     # ---------------- BLS kaynaklı seriler (İstihdam + Enflasyon) ----------------
@@ -110,7 +120,7 @@ def main():
         else:
             print(f"  ! {series_id} ({meta['name']}): veri dönmedi")
 
-    # ---------------- FRED kaynaklı seriler (örn. ADP, PCE) ----------------
+    # ---------------- FRED kaynaklı seriler (örn. ADP) ----------------
     fred_series_ids = get_combined_series_ids(source="fred")
     if fred_series_ids:
         if not fred_api_key:
@@ -135,6 +145,37 @@ def main():
                         print(f"  ! {series_id} ({meta['name']}): veri dönmedi")
                 except Exception as exc:
                     print(f"  ! {series_id} ({meta['name']}) çekimi başarısız: {exc}")
+
+    # ---------------- BEA kaynaklı seriler (PCE'nin ayrıntılı alt kategorileri) ----------------
+    bea_series_ids = get_combined_series_ids(source="bea")
+    if bea_series_ids:
+        if not bea_api_key:
+            print(f"[UYARI] {len(bea_series_ids)} BEA serisi BEA_API_KEY olmadığı için atlanıyor.")
+        else:
+            print(f"{len(bea_series_ids)} BEA serisi (PCE ayrıntılı kategoriler) çekiliyor...")
+            bea_code_to_series_id = {
+                COMBINED_CATALOG[sid]["bea_series_code"]: sid for sid in bea_series_ids
+            }
+            try:
+                bea_results = fetch_underlying_detail_series(
+                    bea_api_key,
+                    series_codes=list(bea_code_to_series_id.keys()),
+                    start_year=start_year,
+                )
+                for bea_code, points in bea_results.items():
+                    series_id = bea_code_to_series_id[bea_code]
+                    meta = COMBINED_CATALOG[series_id]
+                    database.upsert_series_meta(
+                        series_id, meta["name"], meta["category"], meta["units"]
+                    )
+                    if points:
+                        database.upsert_series_points(series_id, points)
+                        database.snapshot_current_as_revision(series_id, points)
+                        print(f"  ✓ {series_id} ({meta['name']}): {len(points)} veri noktası")
+                    else:
+                        print(f"  ! {series_id} ({meta['name']}): veri dönmedi")
+            except Exception as exc:
+                print(f"  ! BEA API çekimi başarısız (tüm BEA serileri atlandı): {exc}")
 
     # ---------------- FRED/ALFRED üzerinden gerçek revizyon geçmişi (Tarım Dışı İstihdam) ----------------
     if not args.skip_revisions:
