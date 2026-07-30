@@ -4,34 +4,30 @@ PCE Fiyat Endeksi (Personal Consumption Expenditures Price Index) veri kataloğu
 PCE, Fed'in enflasyon hedeflemesinde ESAS ALDIĞI ölçüttür (CPI değil) —
 FOMC toplantılarında ve Fed'in %2 enflasyon hedefinde referans PCE'dir.
 
-BLS değil BEA (Bureau of Economic Analysis) kaynaklıdır; resmi bir BEA API'si
-var ama FRED bu veriyi de barındırdığından (ADP'de olduğu gibi) FRED üzerinden
-çekiyoruz — ekstra bir istemciye gerek yok.
+BLS değil BEA (Bureau of Economic Analysis) kaynaklıdır.
 
 Her giriş şu bilgileri taşır:
-    series_id  : FRED seri kodu
+    series_id  : FRED ya da BEA seri kodu
     name       : Panelde gösterilecek okunabilir isim
     category   : "Headline" | "Core" | "Other Headline Indicators" | "Categories"
     units      : "index" (2017=100 taban yıllı endeks değeri)
-    source     : "fred" (BEA verisi FRED üzerinden çekiliyor)
-    fred_scale : 1.0 — PCE zaten bir endeks olduğundan FRED değeri OLDUĞU GİBİ
-                 kullanılır (ADP'nin aksine 1000'e bölünmez)
-
-Seri ID'leri FRED'in resmi sayfalarından doğrulanmıştır (BEA Personal Income
-and Outlays raporu, Table 2.8.4 — Price Indexes for Personal Consumption
-Expenditures by Major Type of Product).
+    source     : "fred" (BEA verisi FRED üzerinden) ya da "bea" (BEA'nın kendi
+                 API'sinden — sadece FRED'de bulunmayan ayrıntılı kategoriler için)
+    fred_scale : (sadece source="fred" için) 1.0 — PCE zaten bir endeks
+                 olduğundan FRED değeri OLDUĞU GİBİ kullanılır
+    bea_series_code : (sadece source="bea" için) BEA'nın Account Code'u
 
 NOT: PCE endeksleri sadece mevsimsel düzeltmeli (SA) olarak aylık yayınlanır;
 CPI/PPI'nin aksine ayrı bir NSA (ham) versiyonu yoktur — bu yüzden bu
 katalogda nsa_pair alanı bulunmaz ve panelde "Mevsimsellik Karşılaştırması"
 bölümü bu kategori için otomatik olarak gizlenir.
 
-ÖNEMLİ KISIT: BEA, CPI'daki gibi Konut/Sağlık/Ulaştırma/Eğlence/Finansal
-Hizmetler gibi kategorileri AYRI AYRI AYLIK olarak yayınlamaz — bu detaylar
-sadece BEA'nın çeyreklik/yıllık NIPA tablolarında (Table 2.4.4) mevcuttur.
-Aylık "Personal Income and Outlays" raporunda sadece bu dosyadaki kaba
-kırılım (Mal/Hizmet/Dayanıklı/Dayanıksız/Gıda/Enerji) ve 2023'te eklenen
-"hariç" ölçütleri (IA001176M, IA001260M) bulunur.
+ÖNEMLİ KISIT (artık kısmen çözüldü): BEA, CPI'daki gibi Konut/Sağlık/Ulaştırma/
+Eğlence/Finansal Hizmetler gibi kategorileri FRED üzerinden AYRI AYRI AYLIK
+olarak yayınlamaz — bu detaylar sadece BEA'nın "Underlying Detail Tables"
+setinde (NIUnderlyingDetail veri kümesi) vardır. Bu yüzden bu kategoriler
+FRED değil, BEA'nın kendi API'sinden (src/bea_client.py, source="bea")
+çekilir — bkz. aşağıdaki "Ayrıntılı hizmet/mal kategorileri" bölümü.
 """
 
 SERIES_CATALOG = {
@@ -97,7 +93,7 @@ SERIES_CATALOG = {
         "fred_scale": 1.0,
     },
 
-    # ---------------- Mal alt kategorileri ----------------
+    # ---------------- Mal alt kategorileri (FRED üzerinden) ----------------
     "DDURRG3M086SBEA": {
         "name": "PCE — Dayanıklı Mallar (Durable Goods)",
         "category": "Categories",
@@ -111,6 +107,54 @@ SERIES_CATALOG = {
         "units": "index",
         "source": "fred",
         "fred_scale": 1.0,
+    },
+
+    # ---------------- Ayrıntılı hizmet/mal kategorileri (BEA API üzerinden) ----------------
+    # BU KALEMLER FRED'DE YOKTUR — FRED sadece BEA'nın kaba aylık kategorilerini
+    # barındırır. Konut, Sağlık, Ulaştırma gibi ayrıntılı kırılımlar BEA'nın
+    # "Underlying Detail Tables" (Ayrıntılı Alt Tablolar) setinde bulunur, bu
+    # yüzden BEA'nın kendi API'sinden (src/bea_client.py) çekilirler.
+    "BEA_DHUTRG": {
+        "name": "PCE — Konut ve Kamu Hizmetleri (Housing & Utilities)",
+        "category": "Categories",
+        "units": "index",
+        "source": "bea",
+        "bea_series_code": "DHUTRG",
+    },
+    "BEA_DHLCRG": {
+        "name": "PCE — Sağlık Hizmetleri (Health Care)",
+        "category": "Categories",
+        "units": "index",
+        "source": "bea",
+        "bea_series_code": "DHLCRG",
+    },
+    "BEA_DTRSRG": {
+        "name": "PCE — Ulaştırma Hizmetleri (Transportation Services)",
+        "category": "Categories",
+        "units": "index",
+        "source": "bea",
+        "bea_series_code": "DTRSRG",
+    },
+    "BEA_DRCARG": {
+        "name": "PCE — Eğlence Hizmetleri (Recreation Services)",
+        "category": "Categories",
+        "units": "index",
+        "source": "bea",
+        "bea_series_code": "DRCARG",
+    },
+    "BEA_DFSARG": {
+        "name": "PCE — Yiyecek Hizmetleri ve Konaklama (Food Services & Accommodations)",
+        "category": "Categories",
+        "units": "index",
+        "source": "bea",
+        "bea_series_code": "DFSARG",
+    },
+    "BEA_DIFSRG": {
+        "name": "PCE — Finansal Hizmetler ve Sigorta (Financial Services & Insurance)",
+        "category": "Categories",
+        "units": "index",
+        "source": "bea",
+        "bea_series_code": "DIFSRG",
     },
 }
 
