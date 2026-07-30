@@ -5,7 +5,7 @@ BEA'nın (Bureau of Economic Analysis) Kişisel Tüketim Harcamaları Fiyat
 Endeksi'ni (PCE) gösterir: başlık göstergeleri (Tüm Kalemler, Çekirdek PCE,
 Enerji, Gıda, Hizmetler...) ve mal/hizmet alt kategorileri (Dayanıklı/
 Dayanıksız Mallar, Konut, Sağlık, Ulaştırma, Eğlence, Yiyecek Hizmetleri,
-Finansal Hizmetler).
+Finansal Hizmetler ve daha fazlası).
 
 ÖNEMLİ: PCE, Fed'in (FOMC) %2 enflasyon hedeflemesinde ESAS ALDIĞI ölçüttür —
 CPI değil. Fed'in konuşmalarında/kararlarında referans verilen "enflasyon",
@@ -104,7 +104,44 @@ category = st.sidebar.radio("Kategori", get_categories())
 
 # ---------------------------------------------------------------- ana başlık
 st.title("💰 PCE Fiyat Endeksi — Genel Bakış")
-st.caption("Kaynak: U.S. Bureau of Economic Analysis (BEA) — Personal Consumption Expenditures Price Index")
+st.caption("Kaynak: U.S. Bureau of Economic Analysis (BEA) — Personal Consumption Expenditures Price Index, FRED üzerinden")
+
+# ---------------------------------------------------------------- her zaman görünen manşet özeti
+st.markdown("### 📌 Manşet Göstergeler (Hangi Kategori Seçili Olursa Olsun)")
+headline_cols = st.columns(2)
+headline_df = load_series("PCEPI")
+core_df = load_series("PCEPILFE")
+
+with headline_cols[0]:
+    latest, mom_pct, yoy_pct = latest_index_and_changes(headline_df)
+    if latest is not None:
+        st.metric(
+            label="PCE Fiyat Endeksi — Tüm Kalemler (Manşet)",
+            value=f"{mom_pct:+.2f}% (aylık)" if mom_pct is not None else "Veri yok",
+            delta=f"{yoy_pct:+.1f}% (yıllık)" if yoy_pct is not None else None,
+            help=f"{latest['date'].strftime('%B %Y')} verisi — Endeks: {latest['value']:.2f} (2017=100)",
+        )
+    else:
+        st.metric(label="PCE Fiyat Endeksi — Tüm Kalemler (Manşet)", value="Veri yok")
+
+with headline_cols[1]:
+    latest, mom_pct, yoy_pct = latest_index_and_changes(core_df)
+    if latest is not None:
+        st.metric(
+            label="Çekirdek PCE (Fed'in Hedef Ölçütü)",
+            value=f"{mom_pct:+.2f}% (aylık)" if mom_pct is not None else "Veri yok",
+            delta=f"{yoy_pct:+.1f}% (yıllık)" if yoy_pct is not None else None,
+            help=f"{latest['date'].strftime('%B %Y')} verisi — Endeks: {latest['value']:.2f} (2017=100)",
+        )
+    else:
+        st.metric(label="Çekirdek PCE (Fed'in Hedef Ölçütü)", value="Veri yok")
+
+st.caption(
+    "Not: Bu iki gösterge, seçtiğiniz kategoriden bağımsız olarak her zaman burada görünür. "
+    "'En son ay' verisi henüz güncellenmediyse, sol menüden '🔄 Veriyi şimdi güncelle' butonunu kullanın."
+)
+
+st.divider()
 
 series_in_category = get_by_category(category)
 
@@ -116,6 +153,14 @@ card_data = {sid: load_series(sid) for sid in series_in_category}
 
 # ---------------------------------------------------------------- özet kartlar
 st.subheader(f"{category} — Güncel PCE Oranları")
+
+card_metric_choice = st.radio(
+    "Kartlarda ana değer olarak gösterilecek",
+    ["Aylık % Değişim", "Yıllık % Değişim"],
+    horizontal=True,
+    key=f"pce_card_metric_{category}",
+)
+
 cols = st.columns(min(3, len(series_in_category)))
 for i, (sid, meta) in enumerate(series_in_category.items()):
     df = card_data[sid]
@@ -123,10 +168,16 @@ for i, (sid, meta) in enumerate(series_in_category.items()):
     col = cols[i % len(cols)]
     with col:
         if latest is not None and yoy_pct is not None:
+            if card_metric_choice == "Aylık % Değişim":
+                primary, primary_label = mom_pct, "aylık"
+                secondary, secondary_label = yoy_pct, "yıllık"
+            else:
+                primary, primary_label = yoy_pct, "yıllık"
+                secondary, secondary_label = mom_pct, "aylık"
             st.metric(
                 label=meta["name"],
-                value=f"{yoy_pct:+.1f}% (yıllık)",
-                delta=f"{mom_pct:+.2f}% (aylık)" if mom_pct is not None else None,
+                value=f"{primary:+.2f}% ({primary_label})",
+                delta=f"{secondary:+.2f}% ({secondary_label})" if secondary is not None else None,
                 help=f"Endeks değeri: {latest['value']:.2f} (2017=100)",
             )
             trend = report_utils.compute_trend_indicator(df)
