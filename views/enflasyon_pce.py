@@ -4,7 +4,8 @@ PCE Fiyat Endeksi — Genel Bakış
 BEA'nın (Bureau of Economic Analysis) Kişisel Tüketim Harcamaları Fiyat
 Endeksi'ni (PCE) gösterir: başlık göstergeleri (Tüm Kalemler, Çekirdek PCE,
 Enerji, Gıda, Hizmetler...) ve mal/hizmet alt kategorileri (Dayanıklı/
-Dayanıksız Mallar).
+Dayanıksız Mallar, Konut, Sağlık, Ulaştırma, Eğlence, Yiyecek Hizmetleri,
+Finansal Hizmetler).
 
 ÖNEMLİ: PCE, Fed'in (FOMC) %2 enflasyon hedeflemesinde ESAS ALDIĞI ölçüttür —
 CPI değil. Fed'in konuşmalarında/kararlarında referans verilen "enflasyon",
@@ -12,8 +13,9 @@ genellikle Çekirdek PCE'dir.
 
 PCE bir SEVİYE değil bir ENDEKS (2017=100 taban yıllı) olduğundan, mutlak
 değer karşılaştırması yerine odak HER ZAMAN % değişim (aylık ve yıllık
-enflasyon oranı) üzerindedir. Veri BEA'dan gelir ama BEA'nın kendi API'si
-yerine (ADP'de olduğu gibi) FRED üzerinden çekilir.
+enflasyon oranı) üzerindedir. Veri BEA'dan gelir; başlık göstergeleri FRED
+üzerinden (ADP'de olduğu gibi), ayrıntılı alt kategoriler ise BEA'nın kendi
+API'sinden (src/bea_client.py) çekilir.
 """
 
 import os
@@ -79,6 +81,8 @@ if st.sidebar.button("🔄 Veriyi şimdi güncelle"):
                 child_env["BLS_API_KEY"] = st.secrets["BLS_API_KEY"]
             if "FRED_API_KEY" in st.secrets:
                 child_env["FRED_API_KEY"] = st.secrets["FRED_API_KEY"]
+            if "BEA_API_KEY" in st.secrets:
+                child_env["BEA_API_KEY"] = st.secrets["BEA_API_KEY"]
         except Exception:
             pass
 
@@ -100,7 +104,7 @@ category = st.sidebar.radio("Kategori", get_categories())
 
 # ---------------------------------------------------------------- ana başlık
 st.title("💰 PCE Fiyat Endeksi — Genel Bakış")
-st.caption("Kaynak: U.S. Bureau of Economic Analysis (BEA) — Personal Consumption Expenditures Price Index, FRED üzerinden")
+st.caption("Kaynak: U.S. Bureau of Economic Analysis (BEA) — Personal Consumption Expenditures Price Index")
 
 series_in_category = get_by_category(category)
 
