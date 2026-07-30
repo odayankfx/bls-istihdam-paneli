@@ -22,12 +22,12 @@ CPI/PPI'nin aksine ayrı bir NSA (ham) versiyonu yoktur — bu yüzden bu
 katalogda nsa_pair alanı bulunmaz ve panelde "Mevsimsellik Karşılaştırması"
 bölümü bu kategori için otomatik olarak gizlenir.
 
-ÖNEMLİ KISIT (artık kısmen çözüldü): BEA, CPI'daki gibi Konut/Sağlık/Ulaştırma/
-Eğlence/Finansal Hizmetler gibi kategorileri FRED üzerinden AYRI AYRI AYLIK
-olarak yayınlamaz — bu detaylar sadece BEA'nın "Underlying Detail Tables"
-setinde (NIUnderlyingDetail veri kümesi) vardır. Bu yüzden bu kategoriler
-FRED değil, BEA'nın kendi API'sinden (src/bea_client.py, source="bea")
-çekilir — bkz. aşağıdaki "Ayrıntılı hizmet/mal kategorileri" bölümü.
+Ayrıntılı mal/hizmet kategorileri (Konut, Sağlık, Ulaştırma, Motorlu Taşıtlar,
+Giyim, Benzin/Enerji vb.) FRED'de AYRI AYRI AYLIK olarak yayınlanmaz — bu
+detaylar sadece BEA'nın "Underlying Detail Tables" setinde (NIUnderlyingDetail
+veri kümesi) vardır. Bu yüzden bu kategoriler FRED değil, BEA'nın kendi
+API'sinden (src/bea_client.py, source="bea") çekilir. Tüm BEA Account Code'ları
+FRED'in sayfalarından tek tek doğrulanmıştır.
 """
 
 SERIES_CATALOG = {
@@ -109,7 +109,7 @@ SERIES_CATALOG = {
         "fred_scale": 1.0,
     },
 
-    # ---------------- Ayrıntılı hizmet/mal kategorileri (BEA API üzerinden) ----------------
+    # ---------------- Ayrıntılı hizmet kategorileri (BEA API üzerinden) ----------------
     # BU KALEMLER FRED'DE YOKTUR — FRED sadece BEA'nın kaba aylık kategorilerini
     # barındırır. Konut, Sağlık, Ulaştırma gibi ayrıntılı kırılımlar BEA'nın
     # "Underlying Detail Tables" (Ayrıntılı Alt Tablolar) setinde bulunur, bu
@@ -155,6 +155,73 @@ SERIES_CATALOG = {
         "units": "index",
         "source": "bea",
         "bea_series_code": "DIFSRG",
+    },
+    "BEA_DOTSRG": {
+        "name": "PCE — Diğer Hizmetler (Other Services)",
+        "category": "Categories",
+        "units": "index",
+        "source": "bea",
+        "bea_series_code": "DOTSRG",
+    },
+    "BEA_DNPIRG": {
+        "name": "PCE — Kar Amacı Gütmeyen Kuruluşlar (Nonprofit Institutions - NPISHs)",
+        "category": "Categories",
+        "units": "index",
+        "source": "bea",
+        "bea_series_code": "DNPIRG",
+    },
+
+    # ---------------- Dayanıklı Mal alt kategorileri (BEA API üzerinden) ----------------
+    "BEA_DMOTRG": {
+        "name": "PCE — Motorlu Taşıtlar ve Parçaları (Motor Vehicles & Parts)",
+        "category": "Categories",
+        "units": "index",
+        "source": "bea",
+        "bea_series_code": "DMOTRG",
+    },
+    "BEA_DFDHRG": {
+        "name": "PCE — Mobilya ve Dayanıklı Ev Eşyaları (Furnishings & Durable Household Equipment)",
+        "category": "Categories",
+        "units": "index",
+        "source": "bea",
+        "bea_series_code": "DFDHRG",
+    },
+    "BEA_DREQRG": {
+        "name": "PCE — Eğlence Malları ve Araçları (Recreational Goods & Vehicles)",
+        "category": "Categories",
+        "units": "index",
+        "source": "bea",
+        "bea_series_code": "DREQRG",
+    },
+    "BEA_DODGRG": {
+        "name": "PCE — Diğer Dayanıklı Mallar (Other Durable Goods)",
+        "category": "Categories",
+        "units": "index",
+        "source": "bea",
+        "bea_series_code": "DODGRG",
+    },
+
+    # ---------------- Dayanıksız Mal alt kategorileri (BEA API üzerinden) ----------------
+    "BEA_DCLORG": {
+        "name": "PCE — Giyim ve Ayakkabı (Clothing & Footwear)",
+        "category": "Categories",
+        "units": "index",
+        "source": "bea",
+        "bea_series_code": "DCLORG",
+    },
+    "BEA_DGOERG": {
+        "name": "PCE — Benzin ve Diğer Enerji Malları (Gasoline & Other Energy Goods)",
+        "category": "Categories",
+        "units": "index",
+        "source": "bea",
+        "bea_series_code": "DGOERG",
+    },
+    "BEA_DONGRG": {
+        "name": "PCE — Diğer Dayanıksız Mallar (Other Nondurable Goods)",
+        "category": "Categories",
+        "units": "index",
+        "source": "bea",
+        "bea_series_code": "DONGRG",
     },
 }
 
