@@ -18,6 +18,37 @@ st.set_page_config(
     layout="wide",
 )
 
+
+def check_password():
+    """
+    Basit şifre koruması. Panel WordPress sitesine iframe ile gömülü olduğu
+    için, doğrudan Streamlit Cloud linkini bilenlerin de içeriği görmemesi
+    için buradan girmiş olmaları gerekir.
+
+    Şifre Streamlit Cloud'daki Secrets kısmında APP_PASSWORD olarak
+    tanımlanmalıdır.
+    """
+
+    def password_entered():
+        if st.session_state.get("password_input") == st.secrets.get("APP_PASSWORD", ""):
+            st.session_state["password_correct"] = True
+            del st.session_state["password_input"]
+        else:
+            st.session_state["password_correct"] = False
+
+    if st.session_state.get("password_correct", False):
+        return True
+
+    st.title("🔒 Giriş Gerekli")
+    st.text_input("Şifre", type="password", key="password_input", on_change=password_entered)
+    if "password_correct" in st.session_state and not st.session_state["password_correct"]:
+        st.error("Şifre yanlış, tekrar deneyin.")
+    return False
+
+
+if not check_password():
+    st.stop()
+
 home_page = st.Page("views/home.py", title="Ana Sayfa", icon="🏠", default=True)
 
 istihdam_genel = st.Page("views/istihdam_genel.py", title="Genel Bakış", icon="📊")
