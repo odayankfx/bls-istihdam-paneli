@@ -1,21 +1,5 @@
 """
 PCE Fiyat Endeksi — Genel Bakış
-
-BEA'nın (Bureau of Economic Analysis) Kişisel Tüketim Harcamaları Fiyat
-Endeksi'ni (PCE) gösterir: başlık göstergeleri (Tüm Kalemler, Çekirdek PCE,
-Enerji, Gıda, Hizmetler...) ve mal/hizmet alt kategorileri (Dayanıklı/
-Dayanıksız Mallar, Konut, Sağlık, Ulaştırma, Eğlence, Yiyecek Hizmetleri,
-Finansal Hizmetler ve daha fazlası).
-
-ÖNEMLİ: PCE, Fed'in (FOMC) %2 enflasyon hedeflemesinde ESAS ALDIĞI ölçüttür —
-CPI değil. Fed'in konuşmalarında/kararlarında referans verilen "enflasyon",
-genellikle Çekirdek PCE'dir.
-
-PCE bir SEVİYE değil bir ENDEKS (2017=100 taban yıllı) olduğundan, mutlak
-değer karşılaştırması yerine odak HER ZAMAN % değişim (aylık ve yıllık
-enflasyon oranı) üzerindedir. Veri BEA'dan gelir; başlık göstergeleri FRED
-üzerinden (ADP'de olduğu gibi), ayrıntılı alt kategoriler ise BEA'nın kendi
-API'sinden (src/bea_client.py) çekilir.
 """
 
 import os
@@ -107,39 +91,26 @@ st.title("💰 PCE Fiyat Endeksi — Genel Bakış")
 st.caption("Kaynak: U.S. Bureau of Economic Analysis (BEA) — Personal Consumption Expenditures Price Index, FRED üzerinden")
 
 # ---------------------------------------------------------------- her zaman görünen manşet özeti
-st.markdown("### 📌 Manşet Göstergeler (Hangi Kategori Seçili Olursa Olsun)")
-headline_cols = st.columns(2)
+st.markdown("### 📌 Manşet Göstergeler")
 headline_df = load_series("PCEPI")
 core_df = load_series("PCEPILFE")
 
-with headline_cols[0]:
-    latest, mom_pct, yoy_pct = latest_index_and_changes(headline_df)
-    if latest is not None:
-        st.metric(
-            label="PCE Fiyat Endeksi — Tüm Kalemler (Manşet)",
-            value=f"{mom_pct:+.2f}% (aylık)" if mom_pct is not None else "Veri yok",
-            delta=f"{yoy_pct:+.1f}% (yıllık)" if yoy_pct is not None else None,
-            help=f"{latest['date'].strftime('%B %Y')} verisi — Endeks: {latest['value']:.2f} (2017=100)",
-        )
-    else:
-        st.metric(label="PCE Fiyat Endeksi — Tüm Kalemler (Manşet)", value="Veri yok")
+hcol1, hcol2, hcol3, hcol4 = st.columns(4)
 
-with headline_cols[1]:
-    latest, mom_pct, yoy_pct = latest_index_and_changes(core_df)
-    if latest is not None:
-        st.metric(
-            label="Çekirdek PCE (Fed'in Hedef Ölçütü)",
-            value=f"{mom_pct:+.2f}% (aylık)" if mom_pct is not None else "Veri yok",
-            delta=f"{yoy_pct:+.1f}% (yıllık)" if yoy_pct is not None else None,
-            help=f"{latest['date'].strftime('%B %Y')} verisi — Endeks: {latest['value']:.2f} (2017=100)",
-        )
-    else:
-        st.metric(label="Çekirdek PCE (Fed'in Hedef Ölçütü)", value="Veri yok")
+latest, mom_pct, yoy_pct = latest_index_and_changes(headline_df)
+with hcol1:
+    st.metric("Tüm Kalemler (Aylık)", f"{mom_pct:+.2f}%" if mom_pct is not None else "—")
+with hcol2:
+    st.metric("Tüm Kalemler (Yıllık)", f"{yoy_pct:+.1f}%" if yoy_pct is not None else "—")
 
-st.caption(
-    "Not: Bu iki gösterge, seçtiğiniz kategoriden bağımsız olarak her zaman burada görünür. "
-    "'En son ay' verisi henüz güncellenmediyse, sol menüden '🔄 Veriyi şimdi güncelle' butonunu kullanın."
-)
+latest_c, mom_pct_c, yoy_pct_c = latest_index_and_changes(core_df)
+with hcol3:
+    st.metric("Çekirdek (Aylık)", f"{mom_pct_c:+.2f}%" if mom_pct_c is not None else "—")
+with hcol4:
+    st.metric("Çekirdek (Yıllık)", f"{yoy_pct_c:+.1f}%" if yoy_pct_c is not None else "—")
+
+if latest is not None:
+    st.caption(f"Son veri: {latest['date'].strftime('%B %Y')}")
 
 st.divider()
 
@@ -152,14 +123,7 @@ if not series_in_category:
 card_data = {sid: load_series(sid) for sid in series_in_category}
 
 # ---------------------------------------------------------------- özet kartlar
-st.subheader(f"{category} — Güncel PCE Oranları")
-
-card_metric_choice = st.radio(
-    "Kartlarda ana değer olarak gösterilecek",
-    ["Aylık % Değişim", "Yıllık % Değişim"],
-    horizontal=True,
-    key=f"pce_card_metric_{category}",
-)
+st.subheader("Güncel Durum")
 
 cols = st.columns(min(3, len(series_in_category)))
 for i, (sid, meta) in enumerate(series_in_category.items()):
@@ -167,32 +131,25 @@ for i, (sid, meta) in enumerate(series_in_category.items()):
     latest, mom_pct, yoy_pct = latest_index_and_changes(df)
     col = cols[i % len(cols)]
     with col:
-        if latest is not None and yoy_pct is not None:
-            if card_metric_choice == "Aylık % Değişim":
-                primary, primary_label = mom_pct, "aylık"
-                secondary, secondary_label = yoy_pct, "yıllık"
-            else:
-                primary, primary_label = yoy_pct, "yıllık"
-                secondary, secondary_label = mom_pct, "aylık"
+        if latest is not None:
+            mom_str = f"{mom_pct:+.2f}%" if mom_pct is not None else "—"
+            yoy_str = f"{yoy_pct:+.1f}%" if yoy_pct is not None else "—"
             st.metric(
                 label=meta["name"],
-                value=f"{primary:+.2f}% ({primary_label})",
-                delta=f"{secondary:+.2f}% ({secondary_label})" if secondary is not None else None,
+                value=f"Aylık: {mom_str} · Yıllık: {yoy_str}",
                 help=f"Endeks değeri: {latest['value']:.2f} (2017=100)",
             )
             trend = report_utils.compute_trend_indicator(df)
             icon, label = report_utils.TREND_LABELS[trend["direction"]]
             if trend["direction"] is not None:
                 st.caption(f"{icon} {label}")
-        elif latest is not None:
-            st.metric(label=meta["name"], value=f"Endeks: {latest['value']:.2f}", help="Yıllık % değişim için 12+ ay veri gerekiyor.")
         else:
             st.metric(label=meta["name"], value="Veri yok")
 
 st.divider()
 
 # ---------------------------------------------------------------- pce bar grafiği (ay seçilebilir)
-st.subheader("PCE Oranları Karşılaştırması (Ay Seçilebilir)")
+st.subheader("Oranların Karşılaştırması (Ay Seçilebilir)")
 st.caption(
     "Her kalemin seçtiğiniz aydaki % değişimini yan yana gösterir. "
     "Aşağıdan istediğiniz ayı ve yıllık/aylık görünümü seçebilirsiniz."
@@ -239,7 +196,7 @@ else:
             )
         )
         fig_bar.update_layout(
-            title=f"{category} — {pd.Timestamp(selected_month).strftime('%B %Y')} {bar_metric}",
+            title=f"{pd.Timestamp(selected_month).strftime('%B %Y')} — {bar_metric}",
             height=max(300, 40 * len(month_df)),
             margin=dict(l=10, r=10, t=50, b=10),
             xaxis_title=bar_metric,
@@ -254,7 +211,7 @@ st.subheader("Zaman Serisi Karşılaştırması")
 
 view_mode = st.radio(
     "Gösterim",
-    ["Yıllık % Değişim (PCE Oranı)", "Aylık % Değişim", "Ham Endeks Değeri"],
+    ["Yıllık % Değişim", "Aylık % Değişim", "Ham Endeks Değeri"],
     horizontal=True,
     key="pce_ts_view_mode",
 )
@@ -279,7 +236,7 @@ if selected_series:
             df_f = df[mask]
             fig.add_trace(go.Scatter(x=df_f["date"], y=df_f["value"], mode="lines", name=series_in_category[sid]["name"]))
         fig.update_layout(
-            title=f"{category} — Endeks Değeri",
+            title="Endeks Değeri",
             height=480,
             legend=dict(orientation="h", yanchor="bottom", y=-0.3),
             margin=dict(l=10, r=10, t=50, b=10),
@@ -292,7 +249,7 @@ if selected_series:
         lines = report_utils.build_pct_change_lines(named, pct_type=pct_type)
         report_utils.render_pct_change_chart(
             lines, key_prefix=f"pce_ts_{category}_{pct_type}",
-            title=f"{category} — {view_mode}",
+            title=view_mode,
         )
 else:
     st.info("Karşılaştırmak için en az bir kalem seçin.")
@@ -321,8 +278,6 @@ if table_view == "Tekli kalem (detaylı)":
     if compact.empty:
         st.info("Bu kalem için veri yok.")
     else:
-        # PCE'de "Değer" bir endeks (2-3 ondalık anlamlı), Aylık/Yıllık Değişim (index puan
-        # cinsinden) ikinci planda — asıl önemli olan % değişim kolonlarıdır.
         st.dataframe(
             compact.style.format(
                 {
@@ -353,14 +308,12 @@ else:
     )
     value_type_map = {
         "Yıllık % Değişim": "yoy_pct",
-        "Aylık % Değişim": "change",  # aşağıda özel işlenecek
+        "Aylık % Değişim": "change",
         "Ham Endeks Değeri": "level",
     }
     named = {meta["name"]: card_data[sid] for sid, meta in series_in_category.items()}
 
     if value_type_label == "Aylık % Değişim":
-        # build_wide_report_table'ın "change" modu MUTLAK fark verir; PCE için
-        # % değişim istiyoruz, bu yüzden burada kendimiz hesaplıyoruz.
         frames = []
         for name, df in named.items():
             if df.empty:
@@ -398,10 +351,9 @@ st.divider()
 nsa_capable = {sid: meta for sid, meta in series_in_category.items() if "nsa_pair" in meta}
 
 if nsa_capable:
-    st.subheader("🌊 Mevsimsellik Karşılaştırması (Mevsimsel Düzeltmeli vs Ham Veri)")
+    st.subheader("🌊 Mevsimsellik Karşılaştırması")
     st.caption(
-        "Mevsimsel düzeltmeli (SA) endeks, her yıl tekrar eden fiyat dalgalanmalarını "
-        "(örn. yaz aylarında benzin/seyahat fiyatlarındaki mevsimsel artış) arındırır. "
+        "Mevsimsel düzeltmeli (SA) endeks, her yıl tekrar eden fiyat dalgalanmalarını arındırır. "
         "Ham (NSA) endeks bu dalgalanmaları olduğu gibi gösterir."
     )
 
